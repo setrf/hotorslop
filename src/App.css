@@ -164,7 +164,7 @@
 }
 
 .icon-button {
-  padding: 0.45rem 0.95rem;
+  padding: 0.45rem 1.1rem;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(16, 9, 32, 0.7);
@@ -175,6 +175,7 @@
   text-transform: uppercase;
   cursor: pointer;
   transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  white-space: nowrap;
 }
 
 .icon-button:hover:not(:disabled) {
@@ -337,7 +338,7 @@
 }
 
 .guess-button {
-  padding: 0.95rem 1.4rem;
+  padding: 0.95rem 1.6rem;
   border-radius: 16px;
   border: none;
   font-size: 0.95rem;
@@ -348,6 +349,7 @@
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   box-shadow: 0 18px 40px rgba(8, 3, 28, 0.45);
+  white-space: nowrap;
 }
 
 .guess-button.ai {
@@ -1027,7 +1029,7 @@
 }
 
 .session-level .level-summary {
-  width: min(100%, 420px);
+  width: min(100%, 480px);
 }
 
 .session-level .level-progress {
@@ -1036,7 +1038,7 @@
 }
 
 .session-level .level-progress-label {
-  width: min(100%, 360px);
+  width: min(100%, 480px);
   text-align: left;
   margin-top: 0.25rem;
 }
