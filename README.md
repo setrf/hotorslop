@@ -50,35 +50,98 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
 
 ## Tech Stack
 
+### Frontend
 - [Vite](https://vitejs.dev/) + [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
 - CSS-only styling (no runtime CSS-in-JS) with custom gradients/glassmorphism
 - [Hugging Face Datasets Server](https://huggingface.co/docs/datasets-server) REST calls for OpenFake imagery
-- Local storage for onboarding state, player handle, and leaderboard
+
+### Backend
+- [Node.js](https://nodejs.org/) + [Express.js](https://expressjs.com/) + [TypeScript](https://www.typescriptlang.org/)
+- [SQLite](https://www.sqlite.org/) with [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for data persistence
+- [Zod](https://zod.dev/) for runtime type validation
+- RESTful API with CORS support
+
+### Data Persistence
+- **Global leaderboards** with real-time ranking
+- **User score history** with detailed statistics
+- **Session tracking** for gameplay analytics
+- **Cross-device progress** sync via username
 
 ## Architecture
+
+### Frontend Architecture
 
 - `App.tsx` drives the main state machine: deck management, swipe handling, keyboard shortcuts, score/level updates, and modal toggles.
 - `services/openfake.ts`
   - Fetches rows from OpenFake `test` split
   - Filters by allowed model prefixes (`real`, `imagen`, `gpt`, `flux`)
   - Prefetches decks ahead of time and enforces real/fake balance
+- `services/api.ts` - Frontend API client for backend communication
 - UI is broken into minimal sections inside the main component to avoid additional global state managers. Hook usage includes `useCallback`/`useMemo` for derived state and memoized handlers.
+
+### Backend Architecture
+
+- **Database Layer** (`server/src/database/`): SQLite database with user and session management
+- **API Layer** (`server/src/routes/`): RESTful endpoints for users, scores, and leaderboards
+- **Service Layer** (`server/src/index.ts`): Express server with CORS, security, and routing
+- **Data Models**: Structured storage for users, game sessions, and leaderboard data
+
+### Data Flow
+
+1. **User Registration**: Frontend sends username to `/api/users/register`
+2. **Score Saving**: Game sessions are saved to `/api/scores/save` with full statistics
+3. **Leaderboard Queries**: Global rankings fetched from `/api/leaderboard`
+4. **Cross-Session Persistence**: Users can return and continue with existing scores
 
 ## Development Workflow
 
-Install dependencies and run the dev server:
+### Quick Start (Full Stack)
 
 ```bash
+# One-command setup for both frontend and backend
+bash setup.sh
+```
+
+### Manual Setup
+
+1. **Install frontend dependencies:**
+```bash
 npm install
+```
+
+2. **Set up the backend server:**
+```bash
+cd server
+bash setup.sh
+cd ..
+```
+
+3. **Start both servers:**
+```bash
+# Terminal 1: Start the backend server
+npm run server
+
+# Terminal 2: Start the frontend dev server
 npm run dev
 ```
 
-Additional scripts:
+### Individual Scripts
 
 ```bash
-npm run build   # Type-check then build production bundle
-npm run preview # Serve production bundle locally
-npm run lint    # ESLint using the Vite/React TypeScript config
+npm run dev        # Start frontend dev server
+npm run server     # Start backend server
+npm run build      # Type-check then build production bundle
+npm run preview    # Serve production bundle locally
+npm run lint       # ESLint using the Vite/React TypeScript config
+```
+
+### Backend-Only Scripts
+
+```bash
+cd server
+npm run dev        # Start backend in development mode
+npm run build      # Build backend for production
+npm run start      # Start production backend
 ```
 
 ## Project Structure
@@ -91,8 +154,21 @@ src/
   main.tsx       # Application bootstrap
   services/
     openfake.ts  # Hugging Face dataset client & deck balancing
+    api.ts       # Backend API client for score persistence
 public/
   images/        # Local assets used during onboarding/demo
+server/
+  src/
+    index.ts     # Express server setup and middleware
+    database/
+      database.ts # SQLite database initialization and schema
+    routes/
+      users.ts    # User management endpoints
+      scores.ts   # Score saving and retrieval endpoints
+      leaderboard.ts # Global leaderboard endpoints
+  package.json   # Backend dependencies and scripts
+  tsconfig.json  # TypeScript configuration for backend
+  README.md      # Backend-specific documentation
 ```
 
 ## Dataset & Licensing
