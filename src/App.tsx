@@ -19,6 +19,8 @@ type GuessFeedback = {
   label: 'fake' | 'real'
   prompt: string
   model?: string | null
+  streakMessage?: string
+  motivationalMessage?: string
 }
 
 const PLAYER_STORAGE_KEY = 'hotorslop_player_name'
@@ -107,6 +109,7 @@ function App() {
   const [score, setScore] = useState(0)
   const [stats, setStats] = useState({ total: 0, correct: 0 })
   const [streak, setStreak] = useState(0)
+  const [perfectDeckStreak, setPerfectDeckStreak] = useState(0)
   const [cardMotion, setCardMotion] = useState<'idle' | 'left' | 'right' | 'enter'>('enter')
   const [feedback, setFeedback] = useState<GuessFeedback | null>(null)
   const [isLocked, setIsLocked] = useState(false)
@@ -309,8 +312,40 @@ function App() {
       setStats({ total: nextTotal, correct: nextCorrect })
       setStreak(nextStreak)
 
+      // Track perfect deck streaks
+      if (correct && nextTotal > 0 && nextTotal % DECK_SIZE === 0) {
+        const deckAccuracy = nextCorrect / nextTotal
+        if (deckAccuracy === 1.0) {
+          setPerfectDeckStreak(prev => prev + 1)
+        }
+      }
+
       if (playerName) {
         updateLeaderboard(playerName, nextScore, nextTotal)
+      }
+
+      // Enhanced feedback messages based on streak
+      const getFeedbackMessage = (isCorrect: boolean, currentStreak: number, perfectDecks: number) => {
+        if (isCorrect) {
+          if (perfectDecks > 0) return `PERFECT DECK! ${perfectDecks} in a row! 👑`
+          if (currentStreak >= 10) return "INCREDIBLE! You're on FIRE! 🔥"
+          if (currentStreak >= 7) return "AMAZING STREAK! Keep it up! 🚀"
+          if (currentStreak >= 5) return "FANTASTIC! You're crushing it! 💪"
+          if (currentStreak >= 3) return "Great job! Building momentum! ⚡"
+          return "Hot! 🔥"
+        } else {
+          if (currentStreak >= 5) return "Streak broken! No worries, bounce back! 💪"
+          if (currentStreak >= 3) return "Close call! Keep trying! 🎯"
+          return "Slop! 🤢"
+        }
+      }
+
+      const getMotivationalMessage = (isCorrect: boolean, answer: GuessType) => {
+        if (isCorrect) {
+          return `You nailed it — that was ${answer === 'ai' ? 'AI generated' : 'a real capture'}! 🎯`
+        } else {
+          return `It was actually ${answer === 'ai' ? 'AI generated' : 'a real photo'}. Nice try! 😅`
+        }
       }
 
       setFeedback({
@@ -320,6 +355,8 @@ function App() {
         label: currentCard.label,
         prompt: currentCard.prompt,
         model: currentCard.model ?? null,
+        streakMessage: getFeedbackMessage(correct, correct ? nextStreak : 0, perfectDeckStreak),
+        motivationalMessage: getMotivationalMessage(correct, currentCard.answer),
       })
       scheduleFeedbackClear()
 
@@ -622,18 +659,30 @@ function App() {
           </div>
 
           {feedback && (
-            <div className={`feedback-chip ${feedback.correct ? 'hot' : 'slop'}`} role="status">
+            <div className={`feedback-chip ${feedback.correct ? 'hot' : 'slop'} ${streak >= 5 ? 'streak-celebration' : ''}`} role="status">
               <div className="feedback-primary">
-                <strong>{feedback.correct ? 'Hot! 🔥' : 'Slop! 🤢'}</strong>
-                <span>
-                  {feedback.correct
-                    ? `You nailed it — that was ${feedback.answer === 'ai' ? 'AI generated' : 'a real capture'}. 🎯`
-                    : `It was actually ${feedback.answer === 'ai' ? 'AI generated' : 'a real photo'}. 😅`}
-                </span>
+                <strong>{feedback.streakMessage || (feedback.correct ? 'Hot! 🔥' : 'Slop! 🤢')}</strong>
+                <span>{feedback.motivationalMessage}</span>
               </div>
               <p className="feedback-meta">
                 {feedback.answer === 'ai' ? `Source model: ${feedback.model ?? 'Unspecified — see OpenFake metadata.'}` : null}
               </p>
+              {streak >= 3 && (
+                <div className="streak-indicator">
+                  <span className="streak-count">🔥 {streak} in a row!</span>
+                  <div className="streak-progress">
+                    <div
+                      className="streak-progress-fill"
+                      style={{ width: `${Math.min((streak / 10) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              {perfectDeckStreak > 0 && (
+                <div className="perfect-deck-indicator">
+                  <span className="perfect-count">👑 Perfect Deck Streak: {perfectDeckStreak}</span>
+                </div>
+              )}
             </div>
           )}
 
