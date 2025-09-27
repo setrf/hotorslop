@@ -75,6 +75,91 @@ const log = (...args: unknown[]) => {
   console.info('[openfake]', ...args)
 }
 
+const shuffle = <T,>(items: T[]): T[] => {
+  const copy = [...items]
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
+}
+
+const MAX_CACHE_SIZE = 240
+const MAX_FETCH_ATTEMPTS = 6
+
+const syntheticCacheQueue: HotOrSlopImage[] = []
+const syntheticCacheIds = new Set<string>()
+const realCacheQueue: HotOrSlopImage[] = []
+const realCacheIds = new Set<string>()
+
+const trimCache = (queue: HotOrSlopImage[], idSet: Set<string>) => {
+  while (queue.length > MAX_CACHE_SIZE) {
+    const removed = queue.shift()
+    if (removed) {
+      idSet.delete(removed.id)
+    }
+  }
+}
+
+const enqueueItems = (
+  queue: HotOrSlopImage[],
+  idSet: Set<string>,
+  items: HotOrSlopImage[],
+  label: 'synthetic' | 'real'
+): number => {
+  let added = 0
+  items.forEach((item) => {
+    if (idSet.has(item.id)) return
+    idSet.add(item.id)
+    queue.push(item)
+    added += 1
+  })
+  if (added > 0) {
+    trimCache(queue, idSet)
+    log(`${label} cache extended`, { added, cacheSize: queue.length })
+  }
+  return added
+}
+
+const drawFromCache = (
+  queue: HotOrSlopImage[],
+  idSet: Set<string>,
+  count: number,
+  label: 'synthetic' | 'real'
+): HotOrSlopImage[] => {
+  if (count <= 0 || queue.length === 0) return []
+  if (count >= queue.length) {
+    const drawn = shuffle(queue)
+    queue.length = 0
+    drawn.forEach((item) => idSet.delete(item.id))
+    log(`${label} cache depleted`, { taken: drawn.length })
+    return drawn
+  }
+
+  const indices = new Set<number>()
+  while (indices.size < count) {
+    indices.add(Math.floor(Math.random() * queue.length))
+  }
+
+  const drawn: HotOrSlopImage[] = []
+  Array.from(indices)
+    .sort((a, b) => b - a)
+    .forEach((index) => {
+      const [item] = queue.splice(index, 1)
+      if (!item) return
+      idSet.delete(item.id)
+      drawn.push(item)
+    })
+
+  log(`${label} cache served`, {
+    requested: count,
+    served: drawn.length,
+    cacheRemaining: queue.length,
+  })
+
+  return drawn
+}
+
 const labelToAnswerMap: Record<string, 'ai' | 'real'> = {
   fake: 'ai',
   real: 'real',
@@ -207,15 +292,6 @@ const buildSyntheticImage = (
   }
 }
 
-const shuffle = <T,>(items: T[]): T[] => {
-  const copy = [...items]
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[copy[i], copy[j]] = [copy[j], copy[i]]
-  }
-  return copy
-}
-
 const buildRealImage = (
   rowIdx: number,
   raw: Required<CocoRowsResponse['rows'][number]>['row']
@@ -241,60 +317,104 @@ const buildRealImage = (
   }
 }
 
-const fetchSyntheticPool = async (desired: number, limitPerFetch: number): Promise<HotOrSlopImage[]> => {
-  const totalRows = await getSyntheticRowCount()
-  const deduped = new Map<string, HotOrSlopImage>()
-  const maxAttempts = 6
+const drawSyntheticCards = async (count: number, limitPerFetch: number): Promise<HotOrSlopImage[]> => {
+  if (count <= 0) return []
 
-  for (let attempt = 0; attempt < maxAttempts && deduped.size < desired * 2; attempt += 1) {
-    const remaining = Math.max(desired - deduped.size, 1)
+  let result = drawFromCache(syntheticCacheQueue, syntheticCacheIds, count, 'synthetic')
+  if (result.length >= count) {
+    return result
+  }
+
+  const totalRows = await getSyntheticRowCount()
+
+  for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS && result.length < count; attempt += 1) {
+    const remaining = Math.max(count - result.length, 1)
     const limit = Math.min(limitPerFetch, Math.max(remaining * 3, 20))
     const maxOffset = Math.max(totalRows - limit, 0)
     const offset = Math.floor(Math.random() * (maxOffset + 1))
+
     const rows = await fetchSyntheticRows(offset, limit)
-    rows.forEach((entry) => {
-      const image = buildSyntheticImage(entry.row_idx, entry.row)
-      if (!image) return
-      deduped.set(image.id, image)
-    })
+    const images = rows
+      .map((entry) => buildSyntheticImage(entry.row_idx, entry.row))
+      .filter((image): image is HotOrSlopImage => image !== null)
+
+    const added = enqueueItems(syntheticCacheQueue, syntheticCacheIds, images, 'synthetic')
+
+    let taken = 0
+    const neededAfterEnqueue = count - result.length
+    if (neededAfterEnqueue > 0) {
+      const topUp = drawFromCache(syntheticCacheQueue, syntheticCacheIds, neededAfterEnqueue, 'synthetic')
+      taken = topUp.length
+      result = result.concat(topUp)
+    }
+
     log('Synthetic attempt complete', {
       attempt,
-      deduped: deduped.size,
-      desired,
+      requested: count,
+      accumulated: result.length,
+      added,
+      taken,
       offset,
       limit,
+      cacheRemaining: syntheticCacheQueue.length,
     })
+
+    if (added === 0 && taken === 0) {
+      break
+    }
   }
 
-  return shuffle(Array.from(deduped.values()))
+  return result
 }
 
-const fetchRealPool = async (desired: number, limitPerFetch: number): Promise<HotOrSlopImage[]> => {
-  const totalRows = await getRealRowCount()
-  const deduped = new Map<string, HotOrSlopImage>()
-  const maxAttempts = 6
+const drawRealCards = async (count: number, limitPerFetch: number): Promise<HotOrSlopImage[]> => {
+  if (count <= 0) return []
 
-  for (let attempt = 0; attempt < maxAttempts && deduped.size < desired * 2; attempt += 1) {
-    const remaining = Math.max(desired - deduped.size, 1)
+  let result = drawFromCache(realCacheQueue, realCacheIds, count, 'real')
+  if (result.length >= count) {
+    return result
+  }
+
+  const totalRows = await getRealRowCount()
+
+  for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS && result.length < count; attempt += 1) {
+    const remaining = Math.max(count - result.length, 1)
     const limit = Math.min(limitPerFetch, Math.max(remaining * 3, 20))
     const maxOffset = Math.max(totalRows - limit, 0)
     const offset = Math.floor(Math.random() * (maxOffset + 1))
+
     const rows = await fetchRealRows(offset, limit)
-    rows.forEach((entry) => {
-      const image = buildRealImage(entry.row_idx, entry.row)
-      if (!image) return
-      deduped.set(image.id, image)
-    })
+    const images = rows
+      .map((entry) => buildRealImage(entry.row_idx, entry.row))
+      .filter((image): image is HotOrSlopImage => image !== null)
+
+    const added = enqueueItems(realCacheQueue, realCacheIds, images, 'real')
+
+    let taken = 0
+    const neededAfterEnqueue = count - result.length
+    if (neededAfterEnqueue > 0) {
+      const topUp = drawFromCache(realCacheQueue, realCacheIds, neededAfterEnqueue, 'real')
+      taken = topUp.length
+      result = result.concat(topUp)
+    }
+
     log('Real attempt complete', {
       attempt,
-      deduped: deduped.size,
-      desired,
+      requested: count,
+      accumulated: result.length,
+      added,
+      taken,
       offset,
       limit,
+      cacheRemaining: realCacheQueue.length,
     })
+
+    if (added === 0 && taken === 0) {
+      break
+    }
   }
 
-  return shuffle(Array.from(deduped.values()))
+  return result
 }
 
 export const fetchOpenFakeDeck = async ({
@@ -306,39 +426,70 @@ export const fetchOpenFakeDeck = async ({
   const targetReal = desired - targetFake
 
   log('Fetching deck', { desired, targetFake, targetReal, limitPerFetch })
-  const [fakePool, realPool] = await Promise.all([
-    fetchSyntheticPool(Math.max(targetFake, desired), limitPerFetch),
-    fetchRealPool(Math.max(targetReal, desired), limitPerFetch),
+  const [initialFake, initialReal] = await Promise.all([
+    drawSyntheticCards(targetFake, limitPerFetch),
+    drawRealCards(targetReal, limitPerFetch),
   ])
 
-  log('Pools ready', { fakePool: fakePool.length, realPool: realPool.length })
-  if (fakePool.length === 0 && realPool.length === 0) {
+  let combined: HotOrSlopImage[] = [...initialFake, ...initialReal]
+  let fakeCount = initialFake.length
+  let realCount = initialReal.length
+
+  log('Initial draw complete', { fakeCount, realCount, combined: combined.length })
+
+  if (fakeCount < targetFake) {
+    const neededFake = Math.min(targetFake - fakeCount, Math.max(desired - combined.length, 0))
+    if (neededFake > 0) {
+      const extraFake = await drawSyntheticCards(neededFake, limitPerFetch)
+      combined = [...combined, ...extraFake]
+      fakeCount += extraFake.length
+      log('Synthetic top-up applied', { added: extraFake.length, fakeCount })
+    }
+  }
+
+  if (realCount < targetReal) {
+    const neededReal = Math.min(targetReal - realCount, Math.max(desired - combined.length, 0))
+    if (neededReal > 0) {
+      const extraReal = await drawRealCards(neededReal, limitPerFetch)
+      combined = [...combined, ...extraReal]
+      realCount += extraReal.length
+      log('Real top-up applied', { added: extraReal.length, realCount })
+    }
+  }
+
+  let shortage = desired - combined.length
+  if (shortage > 0) {
+    const extraSynthetic = await drawSyntheticCards(Math.ceil(shortage / 2), limitPerFetch)
+    combined = [...combined, ...extraSynthetic]
+    fakeCount += extraSynthetic.length
+    shortage = desired - combined.length
+    log('Synthetic fallback draw', { added: extraSynthetic.length, shortage })
+  }
+
+  if (shortage > 0) {
+    const extraReal = await drawRealCards(shortage, limitPerFetch)
+    combined = [...combined, ...extraReal]
+    realCount += extraReal.length
+    shortage = desired - combined.length
+    log('Real fallback draw', { added: extraReal.length, shortage })
+  }
+
+  if (combined.length === 0) {
     throw new Error('OpenFake request returned no usable images')
   }
 
-  const fakeSelection = fakePool.slice(0, targetFake)
-  const realSelection = realPool.slice(0, targetReal)
-
-  let combined: HotOrSlopImage[] = [...fakeSelection, ...realSelection]
-  log('Initial selection', { combined: combined.length })
-
   if (combined.length < desired) {
-    const fallbackPool = shuffle([
-      ...fakePool.slice(targetFake),
-      ...realPool.slice(targetReal),
-    ])
-    combined = [...combined, ...fallbackPool.slice(0, desired - combined.length)]
-    log('Applied fallback pool', { combined: combined.length })
-  }
-
-  if (combined.length < desired) {
-    const emergencyPool = shuffle([...fakePool, ...realPool])
-    combined = emergencyPool.slice(0, desired)
-    log('Applied emergency pool', { combined: combined.length })
+    const finalTopUp = await drawSyntheticCards(desired - combined.length, limitPerFetch)
+    combined = [...combined, ...finalTopUp]
+    fakeCount += finalTopUp.length
+    shortage = desired - combined.length
+    log('Emergency synthetic top-up', { added: finalTopUp.length, shortage })
   }
 
   const finalDeck = shuffle(combined).slice(0, desired)
-  log('Deck ready', { final: finalDeck.length })
+  const finalFake = finalDeck.filter((item) => item.label === 'fake').length
+  const finalReal = finalDeck.filter((item) => item.label === 'real').length
+  log('Deck ready', { final: finalDeck.length, finalFake, finalReal })
   return finalDeck
 }
 
