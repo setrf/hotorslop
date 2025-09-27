@@ -732,17 +732,27 @@ function App() {
             <section className="info-section">
               <h3>Dataset</h3>
               <p className="info-text">
-                Images stream live from the OpenFake dataset ({OPEN_FAKE_CONSTANTS.license}). Metadata stays in sync with
-                the source.
+                Images stream live from OpenFake (AI) and COCO-Caption2017 (Real) datasets. Metadata stays in sync with
+                the sources.
               </p>
-              <a
-                className="secondary-button"
-                href={OPEN_FAKE_CONSTANTS.datasetUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open dataset
-              </a>
+              <div className="dataset-links">
+                <a
+                  className="secondary-button"
+                  href={OPEN_FAKE_CONSTANTS.aiDatasetUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  OpenFake Dataset
+                </a>
+                <a
+                  className="secondary-button"
+                  href={OPEN_FAKE_CONSTANTS.realDatasetUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  COCO Dataset
+                </a>
+              </div>
             </section>
           </div>
         </div>
@@ -803,8 +813,9 @@ function App() {
               )}
             </div>
             <p className="leaderboard-license">
-              Imagery credit: <a href={OPEN_FAKE_CONSTANTS.datasetUrl} target="_blank" rel="noreferrer">OpenFake</a>{' '}
-              ({OPEN_FAKE_CONSTANTS.license}). Scores remain on this device only.
+              Imagery credit: <a href={OPEN_FAKE_CONSTANTS.aiDatasetUrl} target="_blank" rel="noreferrer">OpenFake</a> (AI) and{' '}
+              <a href={OPEN_FAKE_CONSTANTS.realDatasetUrl} target="_blank" rel="noreferrer">COCO-Caption2017</a> (Real).
+              Scores saved to backend server.
             </p>
           </div>
         </div>
@@ -816,8 +827,8 @@ function App() {
             initialName={playerName}
             leaderboard={leaderboard}
             onComplete={handleOnboardingComplete}
-            datasetUrl={OPEN_FAKE_CONSTANTS.datasetUrl}
-            datasetLicense={OPEN_FAKE_CONSTANTS.license}
+            datasetUrl={OPEN_FAKE_CONSTANTS.aiDatasetUrl}
+            datasetLicense={OPEN_FAKE_CONSTANTS.aiLicense}
           />
         </div>
       )}

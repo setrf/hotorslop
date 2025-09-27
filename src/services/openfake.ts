@@ -1,9 +1,18 @@
-const HF_DATASET_ID = 'ComplexDataLab/OpenFake'
-const HF_CONFIG = 'default'
-const HF_SPLIT = 'test'
 const HF_API_BASE = 'https://datasets-server.huggingface.co'
-const HF_DATASET_CARD_URL = `https://huggingface.co/datasets/${HF_DATASET_ID}`
-const HF_DATASET_LICENSE = 'CC BY-SA 4.0'
+
+// OpenFake dataset (for AI images)
+const OPENFAKE_DATASET_ID = 'ComplexDataLab/OpenFake'
+const OPENFAKE_CONFIG = 'default'
+const OPENFAKE_SPLIT = 'test'
+const OPENFAKE_DATASET_CARD_URL = `https://huggingface.co/datasets/${OPENFAKE_DATASET_ID}`
+const OPENFAKE_LICENSE = 'CC BY-SA 4.0'
+
+// COCO dataset (for real images)
+const COCO_DATASET_ID = 'lmms-lab/COCO-Caption2017'
+const COCO_CONFIG = 'default'
+const COCO_SPLIT = 'train'
+const COCO_DATASET_CARD_URL = `https://huggingface.co/datasets/${COCO_DATASET_ID}`
+const COCO_LICENSE = 'CC BY 4.0'
 
 export type HotOrSlopImage = {
   id: string
@@ -43,35 +52,58 @@ type RowsResponse = {
   }>
 }
 
-let cachedRowCount: number | null = null
+// Separate caches for each dataset
+let openFakeRowCount: number | null = null
+let cocoRowCount: number | null = null
 
 const labelToAnswerMap: Record<string, 'ai' | 'real'> = {
   fake: 'ai',
   real: 'real',
 }
 
-const defaultCredit = `OpenFake dataset · ${HF_DATASET_LICENSE}`
+const ALLOWED_MODEL_PREFIXES = ['imagen', 'gpt', 'flux'] // Removed 'real' since we get real images from COCO
 
-const ALLOWED_MODEL_PREFIXES = ['real', 'imagen', 'gpt', 'flux']
-
-const getRowCount = async (): Promise<number> => {
-  if (cachedRowCount !== null) return cachedRowCount
+// Get row count for OpenFake dataset (AI images)
+const getOpenFakeRowCount = async (): Promise<number> => {
+  if (openFakeRowCount !== null) return openFakeRowCount
   const params = new URLSearchParams({
-    dataset: HF_DATASET_ID,
-    config: HF_CONFIG,
-    split: HF_SPLIT,
+    dataset: OPENFAKE_DATASET_ID,
+    config: OPENFAKE_CONFIG,
+    split: OPENFAKE_SPLIT,
   })
 
   const response = await fetch(`${HF_API_BASE}/info?${params.toString()}`)
   if (!response.ok) {
-    throw new Error(`Failed to fetch dataset info: ${response.status}`)
+    throw new Error(`Failed to fetch OpenFake dataset info: ${response.status}`)
   }
   const json = (await response.json()) as DatasetInfoResponse
-  const count = json.dataset_info?.splits?.[HF_SPLIT]?.num_examples
+  const count = json.dataset_info?.splits?.[OPENFAKE_SPLIT]?.num_examples
   if (!count || Number.isNaN(count)) {
     throw new Error('Unable to determine dataset size for OpenFake')
   }
-  cachedRowCount = count
+  openFakeRowCount = count
+  return count
+}
+
+// Get row count for COCO dataset (real images)
+const getCocoRowCount = async (): Promise<number> => {
+  if (cocoRowCount !== null) return cocoRowCount
+  const params = new URLSearchParams({
+    dataset: COCO_DATASET_ID,
+    config: COCO_CONFIG,
+    split: COCO_SPLIT,
+  })
+
+  const response = await fetch(`${HF_API_BASE}/info?${params.toString()}`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch COCO dataset info: ${response.status}`)
+  }
+  const json = (await response.json()) as DatasetInfoResponse
+  const count = json.dataset_info?.splits?.[COCO_SPLIT]?.num_examples
+  if (!count || Number.isNaN(count)) {
+    throw new Error('Unable to determine dataset size for COCO')
+  }
+  cocoRowCount = count
   return count
 }
 
@@ -80,20 +112,39 @@ type FetchDeckParams = {
   limitPerFetch?: number
 }
 
-const fetchRows = async (offset: number, limit: number): Promise<RowsResponse['rows']> => {
+// Fetch rows from OpenFake dataset (AI images)
+const fetchOpenFakeRows = async (offset: number, limit: number): Promise<RowsResponse['rows']> => {
   const params = new URLSearchParams({
-    dataset: HF_DATASET_ID,
-    config: HF_CONFIG,
-    split: HF_SPLIT,
+    dataset: OPENFAKE_DATASET_ID,
+    config: OPENFAKE_CONFIG,
+    split: OPENFAKE_SPLIT,
     offset: offset.toString(),
     limit: limit.toString(),
   })
 
   const response = await fetch(`${HF_API_BASE}/rows?${params.toString()}`)
   if (!response.ok) {
-    throw new Error(`Failed to fetch rows: ${response.status}`)
+    throw new Error(`Failed to fetch OpenFake rows: ${response.status}`)
   }
   const data = (await response.json()) as RowsResponse
+  return data.rows ?? []
+}
+
+// Fetch rows from COCO dataset (real images)
+const fetchCocoRows = async (offset: number, limit: number): Promise<any[]> => {
+  const params = new URLSearchParams({
+    dataset: COCO_DATASET_ID,
+    config: COCO_CONFIG,
+    split: COCO_SPLIT,
+    offset: offset.toString(),
+    limit: limit.toString(),
+  })
+
+  const response = await fetch(`${HF_API_BASE}/rows?${params.toString()}`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch COCO rows: ${response.status}`)
+  }
+  const data = await response.json()
   return data.rows ?? []
 }
 
@@ -102,7 +153,8 @@ const normalisePrompt = (value?: string): string => {
   return value.trim()
 }
 
-const buildImage = (rowIdx: number, raw: Required<RowsResponse['rows'][number]>['row']): HotOrSlopImage | null => {
+// Build image from OpenFake dataset (AI images)
+const buildOpenFakeImage = (rowIdx: number, raw: Required<RowsResponse['rows'][number]>['row']): HotOrSlopImage | null => {
   const src = raw.image?.src
   const label = raw.label
   if (!src || !label) return null
@@ -117,14 +169,34 @@ const buildImage = (rowIdx: number, raw: Required<RowsResponse['rows'][number]>[
   if (!isAllowed) return null
 
   return {
-    id: `${HF_SPLIT}-${rowIdx}`,
+    id: `${OPENFAKE_SPLIT}-${rowIdx}`,
     src,
     answer,
     label: label as 'fake' | 'real',
     prompt,
     model: rawModel,
-    credit: defaultCredit,
-    datasetUrl: HF_DATASET_CARD_URL,
+    credit: `OpenFake dataset · ${OPENFAKE_LICENSE}`,
+    datasetUrl: OPENFAKE_DATASET_CARD_URL,
+  }
+}
+
+// Build image from COCO dataset (real images)
+const buildCocoImage = (rowIdx: number, raw: any): HotOrSlopImage | null => {
+  const src = raw.image?.src || raw.image?.url
+  if (!src) return null
+
+  // COCO images are all real
+  const prompt = normalisePrompt(raw.caption || raw.text || 'Real image from COCO dataset')
+
+  return {
+    id: `${COCO_SPLIT}-real-${rowIdx}`,
+    src,
+    answer: 'real',
+    label: 'real',
+    prompt,
+    model: 'real',
+    credit: `COCO-Caption2017 dataset · ${COCO_LICENSE}`,
+    datasetUrl: COCO_DATASET_CARD_URL,
   }
 }
 
@@ -141,74 +213,88 @@ export const fetchOpenFakeDeck = async ({
   count = 24,
   limitPerFetch = 60,
 }: FetchDeckParams = {}): Promise<HotOrSlopImage[]> => {
-  const totalRows = await getRowCount()
   const desired = Math.max(8, count)
-  const deduped = new Map<string, HotOrSlopImage>()
-
-  const maxAttempts = 6
-  for (let attempt = 0; attempt < maxAttempts && deduped.size < desired; attempt += 1) {
-    const remaining = desired - deduped.size
-    const limit = Math.min(limitPerFetch, Math.max(remaining * 2, 20))
-    const maxOffset = Math.max(totalRows - limit, 0)
-    const offset = Math.floor(Math.random() * (maxOffset + 1))
-    const rows = await fetchRows(offset, limit)
-    rows.forEach((entry) => {
-      const rowIdx = entry.row_idx
-      const image = buildImage(rowIdx, entry.row)
-      if (!image) return
-      deduped.set(image.id, image)
-    })
-  }
-
-  if (deduped.size === 0) {
-    throw new Error('OpenFake request returned no usable images')
-  }
-
-  const pool = Array.from(deduped.values())
-
-  const labels = new Set(pool.map((item) => item.label))
-  if (labels.size < 2 && pool.length < desired * 2) {
-    // attempt one more fetch to diversify labels
-    const limit = Math.min(limitPerFetch, desired * 2)
-    const maxOffset = Math.max(totalRows - limit, 0)
-    const offset = Math.floor(Math.random() * (maxOffset + 1))
-    const extraRows = await fetchRows(offset, limit)
-    extraRows.forEach((entry) => {
-      const image = buildImage(entry.row_idx, entry.row)
-      if (!image) return
-      deduped.set(image.id, image)
-    })
-  }
-
-  const finalPool = Array.from(deduped.values())
-  if (finalPool.length < desired) {
-    return shuffle(finalPool)
-  }
-
-  const fakePool = shuffle(finalPool.filter((item) => item.label === 'fake'))
-  const realPool = shuffle(finalPool.filter((item) => item.label === 'real'))
   const targetFake = Math.ceil(desired / 2)
   const targetReal = Math.floor(desired / 2)
 
-  if (fakePool.length < targetFake || realPool.length < targetReal) {
-    return shuffle(finalPool).slice(0, desired)
+  // Fetch AI images from OpenFake dataset
+  const fakeImages = await fetchFakeImages(targetFake, limitPerFetch)
+
+  // Fetch real images from COCO dataset
+  const realImages = await fetchRealImages(targetReal, limitPerFetch)
+
+  const combinedImages = [...fakeImages, ...realImages]
+
+  if (combinedImages.length === 0) {
+    throw new Error('No images could be fetched from either dataset')
   }
 
-  const result: HotOrSlopImage[] = [
-    ...fakePool.slice(0, targetFake),
-    ...realPool.slice(0, targetReal),
-  ]
+  return shuffle(combinedImages)
+}
 
-  if (result.length < desired) {
-    const remaining = finalPool.filter((item) => !result.includes(item))
-    result.push(...remaining.slice(0, desired - result.length))
+// Fetch AI-generated images from OpenFake dataset
+async function fetchFakeImages(targetCount: number, limitPerFetch: number): Promise<HotOrSlopImage[]> {
+  const totalRows = await getOpenFakeRowCount()
+  const deduped = new Map<string, HotOrSlopImage>()
+
+  const maxAttempts = 6
+  for (let attempt = 0; attempt < maxAttempts && deduped.size < targetCount; attempt += 1) {
+    const remaining = targetCount - deduped.size
+    const limit = Math.min(limitPerFetch, Math.max(remaining * 2, 20))
+    const maxOffset = Math.max(totalRows - limit, 0)
+    const offset = Math.floor(Math.random() * (maxOffset + 1))
+
+    try {
+      const rows = await fetchOpenFakeRows(offset, limit)
+      rows.forEach((entry) => {
+        const image = buildOpenFakeImage(entry.row_idx, entry.row)
+        if (image && image.label === 'fake') {
+          deduped.set(image.id, image)
+        }
+      })
+    } catch (error) {
+      console.warn('Failed to fetch from OpenFake dataset:', error)
+    }
   }
 
-  return shuffle(result).slice(0, desired)
+  return Array.from(deduped.values()).slice(0, targetCount)
+}
+
+// Fetch real images from COCO dataset
+async function fetchRealImages(targetCount: number, limitPerFetch: number): Promise<HotOrSlopImage[]> {
+  const totalRows = await getCocoRowCount()
+  const deduped = new Map<string, HotOrSlopImage>()
+
+  const maxAttempts = 6
+  for (let attempt = 0; attempt < maxAttempts && deduped.size < targetCount; attempt += 1) {
+    const remaining = targetCount - deduped.size
+    const limit = Math.min(limitPerFetch, Math.max(remaining * 2, 20))
+    const maxOffset = Math.max(totalRows - limit, 0)
+    const offset = Math.floor(Math.random() * (maxOffset + 1))
+
+    try {
+      const rows = await fetchCocoRows(offset, limit)
+      rows.forEach((entry, index) => {
+        const image = buildCocoImage(offset + index, entry.row)
+        if (image) {
+          deduped.set(image.id, image)
+        }
+      })
+    } catch (error) {
+      console.warn('Failed to fetch from COCO dataset:', error)
+    }
+  }
+
+  return Array.from(deduped.values()).slice(0, targetCount)
 }
 
 export const OPEN_FAKE_CONSTANTS = {
-  datasetId: HF_DATASET_ID,
-  datasetUrl: HF_DATASET_CARD_URL,
-  license: HF_DATASET_LICENSE,
+  // Primary dataset for AI images
+  aiDatasetId: OPENFAKE_DATASET_ID,
+  aiDatasetUrl: OPENFAKE_DATASET_CARD_URL,
+  aiLicense: OPENFAKE_LICENSE,
+  // Secondary dataset for real images
+  realDatasetId: COCO_DATASET_ID,
+  realDatasetUrl: COCO_DATASET_CARD_URL,
+  realLicense: COCO_LICENSE,
 }

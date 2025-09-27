@@ -623,6 +623,13 @@
   background: rgba(110, 215, 255, 0.26);
 }
 
+.dataset-links {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .leaderboard-table {
   display: flex;
   flex-direction: column;
