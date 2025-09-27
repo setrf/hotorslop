@@ -62,11 +62,11 @@ router.post('/save', async (req, res) => {
 // Get user's recent scores
 router.get('/user/:username', async (req, res) => {
   try {
-    const { username } = z.string().parse(req.params.username);
+    const usernameParam = z.string().parse(req.params.username);
     const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
 
     const db = getDatabase();
-    const normalizedUsername = username.toLowerCase().trim();
+    const normalizedUsername = usernameParam.toLowerCase().trim();
 
     const user = db.prepare('SELECT id FROM users WHERE username = ?').get(normalizedUsername) as any;
 
@@ -117,9 +117,9 @@ router.get('/user/:username', async (req, res) => {
 // Get user's best score
 router.get('/user/:username/best', async (req, res) => {
   try {
-    const { username } = z.string().parse(req.params.username);
+    const usernameParam = z.string().parse(req.params.username);
     const db = getDatabase();
-    const normalizedUsername = username.toLowerCase().trim();
+    const normalizedUsername = usernameParam.toLowerCase().trim();
 
     const user = db.prepare('SELECT id FROM users WHERE username = ?').get(normalizedUsername) as any;
 

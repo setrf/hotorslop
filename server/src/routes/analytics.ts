@@ -160,27 +160,23 @@ router.post('/ingest', (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))
     `);
 
-    const insertGuessesTransaction = db.transaction((events: IngestPayload['events']) => {
-      events.forEach((event) => {
-        insertGuess.run(
-          sessionId,
-          event.deckId ?? payload.session.deckId ?? null,
-          event.deckPosition ?? null,
-          event.cardId,
-          event.datasetSource,
-          event.label,
-          event.model ?? null,
-          event.promptLength ?? null,
-          event.guessedAnswer,
-          event.correct ? 1 : 0,
-          event.latencyMs ?? null,
-          event.confidence ?? null,
-          event.timestamp ?? null
-        );
-      });
+    payload.events.forEach((event) => {
+      insertGuess.run(
+        sessionId,
+        event.deckId ?? payload.session.deckId ?? null,
+        event.deckPosition ?? null,
+        event.cardId,
+        event.datasetSource,
+        event.label,
+        event.model ?? null,
+        event.promptLength ?? null,
+        event.guessedAnswer,
+        event.correct ? 1 : 0,
+        event.latencyMs ?? null,
+        event.confidence ?? null,
+        event.timestamp ?? null
+      );
     });
-
-    insertGuessesTransaction(payload.events);
 
     res.json({
       success: true,
@@ -205,7 +201,7 @@ router.post('/ingest', (req, res) => {
   }
 });
 
-router.get('/summary', (req, res) => {
+router.get('/summary', (_req, res) => {
   try {
     const db = getDatabase();
 

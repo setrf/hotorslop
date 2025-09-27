@@ -13,7 +13,7 @@ const usernameSchema = z.string()
 // Get or create user by username
 router.post('/register', async (req, res) => {
   try {
-    const { username } = usernameSchema.parse(req.body);
+    const { username } = z.object({ username: usernameSchema }).parse(req.body);
 
     const db = getDatabase();
     const normalizedUsername = username.toLowerCase().trim();
@@ -68,9 +68,9 @@ router.post('/register', async (req, res) => {
 // Get user by username
 router.get('/:username', async (req, res) => {
   try {
-    const { username } = usernameSchema.parse(req.params.username);
+    const usernameParam = usernameSchema.parse(req.params.username);
     const db = getDatabase();
-    const normalizedUsername = username.toLowerCase().trim();
+    const normalizedUsername = usernameParam.toLowerCase().trim();
 
     const user = db.prepare('SELECT * FROM users WHERE username = ?').get(normalizedUsername) as any;
 

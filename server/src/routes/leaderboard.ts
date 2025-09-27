@@ -64,9 +64,9 @@ router.get('/', async (req, res) => {
 // Get user's rank
 router.get('/rank/:username', async (req, res) => {
   try {
-    const { username } = z.string().parse(req.params.username);
+    const usernameParam = z.string().parse(req.params.username);
     const db = getDatabase();
-    const normalizedUsername = username.toLowerCase().trim();
+    const normalizedUsername = usernameParam.toLowerCase().trim();
 
     const user = db.prepare('SELECT id FROM users WHERE username = ?').get(normalizedUsername) as any;
 
@@ -122,7 +122,7 @@ router.get('/rank/:username', async (req, res) => {
 });
 
 // Get leaderboard statistics
-router.get('/stats', async (req, res) => {
+router.get('/stats', async (_req, res) => {
   try {
     const db = getDatabase();
 

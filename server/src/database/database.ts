@@ -1,36 +1,163 @@
-import Database from 'better-sqlite3';
+import initSqlJs, {
+  type Database as SqlJsDatabase,
+  type Statement as SqlJsStatement,
+  type SqlJsStatic
+} from 'sql.js';
+import * as fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let db: Database.Database;
+type RunResult = {
+  changes: number;
+  lastInsertRowid: number;
+};
+
+class StatementWrapper {
+  constructor(
+    private readonly db: SqlJsDatabase,
+    private readonly sql: string,
+    private readonly persist: () => void
+  ) {}
+
+  private bind(stmt: SqlJsStatement, params: unknown[]): void {
+    if (!params || params.length === 0) return;
+    stmt.bind(params as SqlValue[]);
+  }
+
+  get(...params: unknown[]): Record<string, unknown> | undefined {
+    const stmt = this.db.prepare(this.sql);
+    try {
+      this.bind(stmt, params);
+      if (!stmt.step()) return undefined;
+      return stmt.getAsObject();
+    } finally {
+      stmt.free();
+    }
+  }
+
+  all(...params: unknown[]): Record<string, unknown>[] {
+    const stmt = this.db.prepare(this.sql);
+    try {
+      this.bind(stmt, params);
+      const rows: Record<string, unknown>[] = [];
+      while (stmt.step()) {
+        rows.push(stmt.getAsObject());
+      }
+      return rows;
+    } finally {
+      stmt.free();
+    }
+  }
+
+  run(...params: unknown[]): RunResult {
+    const stmt = this.db.prepare(this.sql);
+    try {
+      this.bind(stmt, params);
+      // Step through the statement to ensure side effects occur.
+      while (stmt.step()) {
+        // no-op: stepping executes the statement.
+      }
+    } finally {
+      stmt.free();
+    }
+
+    const info = this.db.exec('SELECT changes() AS changes, last_insert_rowid() AS last_insert_rowid');
+    const result: RunResult = { changes: 0, lastInsertRowid: 0 };
+
+    if (info.length > 0 && info[0].values.length > 0) {
+      const columns = info[0].columns;
+      const values = info[0].values[0];
+      const changesIndex = columns.indexOf('changes');
+      const idIndex = columns.indexOf('last_insert_rowid');
+      if (changesIndex >= 0) {
+        result.changes = Number(values[changesIndex] ?? 0);
+      }
+      if (idIndex >= 0) {
+        result.lastInsertRowid = Number(values[idIndex] ?? 0);
+      }
+    }
+
+    this.persist();
+    return result;
+  }
+}
+
+class SqliteDatabase {
+  constructor(
+    private readonly db: SqlJsDatabase,
+    private readonly persist: () => void
+  ) {}
+
+  prepare(sql: string): StatementWrapper {
+    return new StatementWrapper(this.db, sql, this.persist);
+  }
+
+  exec(sql: string): void {
+    this.db.exec(sql);
+    this.persist();
+  }
+
+  pragma(statement: string): void {
+    this.db.exec(`PRAGMA ${statement}`);
+    this.persist();
+  }
+}
+
+type SqlValue = number | string | Uint8Array | null;
+
+let sqlModule: SqlJsStatic | null = null;
+let db: SqliteDatabase | null = null;
+let rawDb: SqlJsDatabase | null = null;
+let databasePath: string;
+
+const loadSqlModule = async (): Promise<SqlJsStatic> => {
+  if (sqlModule) return sqlModule;
+  sqlModule = await initSqlJs({
+    locateFile: (file: string) => path.join(path.resolve(__dirname, '../../'), 'node_modules/sql.js/dist', file)
+  });
+  return sqlModule;
+};
+
+const persistDatabase = () => {
+  if (!rawDb || !databasePath) return;
+  const data = rawDb.export();
+  fs.writeFileSync(databasePath, Buffer.from(data));
+};
 
 export async function initializeDatabase(): Promise<void> {
-  const dbPath = process.env.NODE_ENV === 'production'
+  const SQL = await loadSqlModule();
+
+  databasePath = process.env.NODE_ENV === 'production'
     ? path.join(__dirname, '../../data/hotorslop.db')
     : path.join(__dirname, '../../dev.db');
 
-  // Ensure directory exists
-  const fs = await import('fs');
-  const dbDir = path.dirname(dbPath);
+  const dbDir = path.dirname(databasePath);
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }
 
-  db = new Database(dbPath);
+  let fileBuffer: Uint8Array | undefined;
+  if (fs.existsSync(databasePath)) {
+    const buffer = fs.readFileSync(databasePath);
+    fileBuffer = new Uint8Array(buffer);
+  }
 
-  // Enable WAL mode for better concurrency
-  db.pragma('journal_mode = WAL');
+  rawDb = fileBuffer ? new SQL.Database(fileBuffer) : new SQL.Database();
+  db = new SqliteDatabase(rawDb, persistDatabase);
 
-  // Create tables
+  // Align with previous behaviour; not all pragmas affect sql.js but kept for compatibility.
+  rawDb.exec('PRAGMA journal_mode = WAL');
+
   createTables();
+  persistDatabase();
 
   console.log('Database connected and tables created');
 }
 
-export function getDatabase(): Database.Database {
+export function getDatabase(): SqliteDatabase {
   if (!db) {
     throw new Error('Database not initialized');
   }
@@ -38,7 +165,8 @@ export function getDatabase(): Database.Database {
 }
 
 function createTables(): void {
-  // Users table - simple username-based identification
+  if (!db) return;
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,7 +176,6 @@ function createTables(): void {
     )
   `);
 
-  // Game sessions table - tracks individual play sessions
   db.exec(`
     CREATE TABLE IF NOT EXISTS game_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +190,6 @@ function createTables(): void {
     )
   `);
 
-  // Leaderboard view - for easy querying of top scores
   db.exec(`
     CREATE VIEW IF NOT EXISTS leaderboard AS
     SELECT
@@ -79,13 +205,11 @@ function createTables(): void {
     ORDER BY high_score DESC, total_rounds DESC
   `);
 
-  // Create indexes for better performance
   db.exec('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON game_sessions(user_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_score ON game_sessions(score DESC)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_end_time ON game_sessions(end_time DESC)');
 
-  // Analytics tables
   db.exec(`
     CREATE TABLE IF NOT EXISTS analytics_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
