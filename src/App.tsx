@@ -83,6 +83,28 @@ const truncate = (value: string, max = 140): string => {
   return `${value.slice(0, max - 1)}…`
 }
 
+type DatasetSource = {
+  label: string
+  url: string
+  license: string
+  credit: string
+}
+
+const DATASET_SOURCES: DatasetSource[] = [
+  {
+    label: 'OpenFake (synthetic)',
+    url: OPEN_FAKE_CONSTANTS.synthetic.datasetUrl,
+    license: OPEN_FAKE_CONSTANTS.synthetic.license,
+    credit: OPEN_FAKE_CONSTANTS.synthetic.credit,
+  },
+  {
+    label: 'COCO-Caption2017 (real)',
+    url: OPEN_FAKE_CONSTANTS.real.datasetUrl,
+    license: OPEN_FAKE_CONSTANTS.real.license,
+    credit: OPEN_FAKE_CONSTANTS.real.credit,
+  },
+]
+
 function App() {
   const [playerName, setPlayerName] = useState<string>(() => loadPlayerName())
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(() => loadLeaderboard())
@@ -732,26 +754,22 @@ function App() {
             <section className="info-section">
               <h3>Dataset</h3>
               <p className="info-text">
-                Images stream live from OpenFake (AI) and COCO-Caption2017 (Real) datasets. Metadata stays in sync with
-                the sources.
+                Synthetic images stream from the OpenFake dataset ({OPEN_FAKE_CONSTANTS.synthetic.license}); real photos
+                come from the COCO-Caption2017 dataset ({OPEN_FAKE_CONSTANTS.real.license}). Metadata stays in sync with
+                both sources.
               </p>
               <div className="dataset-links">
-                <a
-                  className="secondary-button"
-                  href={OPEN_FAKE_CONSTANTS.aiDatasetUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  OpenFake Dataset
-                </a>
-                <a
-                  className="secondary-button"
-                  href={OPEN_FAKE_CONSTANTS.realDatasetUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  COCO Dataset
-                </a>
+                {DATASET_SOURCES.map((source) => (
+                  <a
+                    key={source.url}
+                    className="secondary-button"
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {source.label}
+                  </a>
+                ))}
               </div>
             </section>
           </div>
@@ -813,9 +831,10 @@ function App() {
               )}
             </div>
             <p className="leaderboard-license">
-              Imagery credit: <a href={OPEN_FAKE_CONSTANTS.aiDatasetUrl} target="_blank" rel="noreferrer">OpenFake</a> (AI) and{' '}
-              <a href={OPEN_FAKE_CONSTANTS.realDatasetUrl} target="_blank" rel="noreferrer">COCO-Caption2017</a> (Real).
-              Scores saved to backend server.
+              Imagery credit: <a href={OPEN_FAKE_CONSTANTS.synthetic.datasetUrl} target="_blank" rel="noreferrer">OpenFake</a>{' '}
+              ({OPEN_FAKE_CONSTANTS.synthetic.license}) ·{' '}
+              <a href={OPEN_FAKE_CONSTANTS.real.datasetUrl} target="_blank" rel="noreferrer">COCO-Caption2017</a>{' '}
+              ({OPEN_FAKE_CONSTANTS.real.license}). Scores remain on this device only.
             </p>
           </div>
         </div>
@@ -827,8 +846,7 @@ function App() {
             initialName={playerName}
             leaderboard={leaderboard}
             onComplete={handleOnboardingComplete}
-            datasetUrl={OPEN_FAKE_CONSTANTS.aiDatasetUrl}
-            datasetLicense={OPEN_FAKE_CONSTANTS.aiLicense}
+            datasetSources={DATASET_SOURCES}
           />
         </div>
       )}
@@ -840,15 +858,15 @@ function App() {
 type OnboardingProps = {
   initialName: string
   leaderboard: LeaderboardEntry[]
-  datasetUrl: string
-  datasetLicense: string
+  datasetSources: DatasetSource[]
   onComplete: (name: string) => void
 }
 
-const Onboarding = ({ initialName, leaderboard, datasetUrl, datasetLicense, onComplete }: OnboardingProps) => {
+const Onboarding = ({ initialName, leaderboard, datasetSources, onComplete }: OnboardingProps) => {
   const [step, setStep] = useState(0)
   const [name, setName] = useState(initialName)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const credits = datasetSources.length > 0 ? datasetSources : DATASET_SOURCES
 
   const slides = useMemo(
     () => [
@@ -940,7 +958,13 @@ const Onboarding = ({ initialName, leaderboard, datasetUrl, datasetLicense, onCo
           ))}
         </div>
         <p className="info-meta">
-          Imagery credit: <a href={datasetUrl} target="_blank" rel="noreferrer">OpenFake</a> ({datasetLicense}).
+          Imagery credit:{' '}
+          {credits.map((source, index) => (
+            <span key={source.url}>
+              <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a> ({source.license})
+              {index < credits.length - 1 ? ' · ' : '.'}
+            </span>
+          ))}
         </p>
       </div>
       <div className="onboarding-feed">

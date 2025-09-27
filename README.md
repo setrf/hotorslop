@@ -1,6 +1,6 @@
 # Hot or Slop
 
-Hot or Slop is a single-page React + TypeScript experience that challenges players to spot AI-generated imagery among real-world captures. Cards stream in real time from the [ComplexDataLab/OpenFake](https://huggingface.co/datasets/ComplexDataLab/OpenFake) dataset; each guess updates your score, level, and local leaderboard position instantly.
+Hot or Slop is a single-page React + TypeScript experience that challenges players to spot AI-generated imagery among real-world captures. Synthetic cards stream in real time from the [ComplexDataLab/OpenFake](https://huggingface.co/datasets/ComplexDataLab/OpenFake) dataset, while real photos now come from the [lmms-lab/COCO-Caption2017](https://huggingface.co/datasets/lmms-lab/COCO-Caption2017) collection. Each guess updates your score, level, and local leaderboard position instantly.
 
 <p align="center">
   <img src="docs/screenshot-main.png" alt="Hot or Slop main screen" width="520" />
@@ -53,7 +53,7 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
 ### Frontend
 - [Vite](https://vitejs.dev/) + [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
 - CSS-only styling (no runtime CSS-in-JS) with custom gradients/glassmorphism
-- [Hugging Face Datasets Server](https://huggingface.co/docs/datasets-server) REST calls for OpenFake imagery
+- [Hugging Face Datasets Server](https://huggingface.co/docs/datasets-server) REST calls for OpenFake synthetic imagery and COCO-Caption2017 real photos
 
 ### Backend
 - [Node.js](https://nodejs.org/) + [Express.js](https://expressjs.com/) + [TypeScript](https://www.typescriptlang.org/)
@@ -73,10 +73,9 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
 
 - `App.tsx` drives the main state machine: deck management, swipe handling, keyboard shortcuts, score/level updates, and modal toggles.
 - `services/openfake.ts`
-  - Fetches AI images from OpenFake dataset (`test` split)
-  - Fetches real images from COCO-Caption2017 dataset (`train` split)
-  - Filters AI images by allowed model prefixes (`imagen`, `gpt`, `flux`)
-  - Prefetches decks ahead of time and enforces 50/50 real/fake balance
+  - Fetches synthetic candidates from OpenFake `test` split and real photos from COCO-Caption2017 `val`
+  - Filters by allowed model prefixes (`real`, `imagen`, `gpt`, `flux`) and normalises human captions/prompts
+  - Prefetches decks ahead of time and enforces a 50/50 real-vs-fake balance
 - `services/api.ts` - Frontend API client for backend communication
 - UI is broken into minimal sections inside the main component to avoid additional global state managers. Hook usage includes `useCallback`/`useMemo` for derived state and memoized handlers.
 
@@ -174,10 +173,10 @@ server/
 
 ## Dataset & Licensing
 
-- **AI Images**: [ComplexDataLab/OpenFake](https://huggingface.co/datasets/ComplexDataLab/OpenFake) - CC BY-SA 4.0
-- **Real Images**: [lmms-lab/COCO-Caption2017](https://huggingface.co/datasets/lmms-lab/COCO-Caption2017) - CC BY 4.0
+- **Synthetic imagery**: [ComplexDataLab/OpenFake](https://huggingface.co/datasets/ComplexDataLab/OpenFake) — CC BY-SA 4.0
+- **Real photography**: [lmms-lab/COCO-Caption2017](https://huggingface.co/datasets/lmms-lab/COCO-Caption2017) — CC BY 4.0
 
-The Info modal provides links to both datasets. Imagery is used strictly for demonstration/testing and not redistributed.
+The Info modal reiterates the licenses and links to both dataset cards. Imagery is used strictly for demonstration/testing and not redistributed.
 
 ## Future Improvements
 
@@ -190,7 +189,7 @@ The Info modal provides links to both datasets. Imagery is used strictly for dem
 
 ## Contributing
 
-Issues and pull requests are welcome—especially around balancing, UX tweaks, new dataset filters, or accessibility fixes. The app now uses dual datasets: OpenFake for AI images and COCO-Caption2017 for real images. If you add new AI generators, update `ALLOWED_MODEL_PREFIXES` in `services/openfake.ts` and be sure to respect both datasets' licensing.
+Issues and pull requests are welcome—especially around balancing, UX tweaks, new dataset filters, or accessibility fixes. If you add generators, update `ALLOWED_MODEL_PREFIXES` in `services/openfake.ts` and be sure to respect the dataset licensing.
 
 ---
 

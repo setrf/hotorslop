@@ -627,7 +627,7 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .leaderboard-table {
@@ -1167,4 +1167,3 @@
   text-align: left;
   margin-top: 0.25rem;
 }
-
