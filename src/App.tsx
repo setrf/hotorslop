@@ -686,9 +686,6 @@ function App() {
             </div>
           )}
 
-          {currentCard && !isLoadingDeck && (
-            <p className="swipe-hint">Swipe left for AI, right for real — or tap the buttons / use ← → keys.</p>
-          )}
         </main>
       </div>
 
