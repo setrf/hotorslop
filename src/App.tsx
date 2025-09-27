@@ -68,12 +68,12 @@ const formatScore = (score: number): string => (score > 0 ? `+${score}` : `${sco
 const DECK_SIZE = 36
 
 const LEVEL_BANDS = [
-  { name: 'Scout', minScore: 0 },
-  { name: 'Observer', minScore: 25 },
-  { name: 'Sleuth', minScore: 60 },
-  { name: 'Examiner', minScore: 120 },
-  { name: 'Analyst', minScore: 200 },
-  { name: 'Oracle', minScore: 320 },
+  { name: 'Scout 👀', minScore: 0 },
+  { name: 'Observer 🔍', minScore: 25 },
+  { name: 'Sleuth 🕵️', minScore: 60 },
+  { name: 'Examiner 🔬', minScore: 120 },
+  { name: 'Analyst 📊', minScore: 200 },
+  { name: 'Oracle 🔮', minScore: 320 },
 ]
 
 const truncate = (value: string, max = 140): string => {
@@ -476,8 +476,8 @@ function App() {
       <div className="app-content">
         <header className="top-bar">
           <div className="brand-stack">
-            <span className="brand-mark">Hot or Slop</span>
-            <h1 className="brand-title">Call the fake.</h1>
+            <span className="brand-mark">Hot or Slop 🔥🤖</span>
+            <h1 className="brand-title">Call the fake. 👁️‍🗨️</h1>
           </div>
           <div className="header-actions">
             <button
@@ -488,7 +488,7 @@ function App() {
               aria-controls="info-panel"
               disabled={overlayActive && !isInfoOpen}
             >
-              Info
+              Info ℹ️
             </button>
             <button
               type="button"
@@ -498,7 +498,7 @@ function App() {
               aria-controls="leaderboard-panel"
               disabled={overlayActive && !isLeaderboardOpen}
             >
-              Leaderboard
+              Leaderboard 🏆
             </button>
           </div>
         </header>
@@ -563,7 +563,7 @@ function App() {
                       onClick={() => handleGuess('ai')}
                       disabled={controlsDisabled}
                     >
-                      AI Generated
+                      🤖 AI Generated
                     </button>
                     <button
                       type="button"
@@ -571,10 +571,10 @@ function App() {
                       onClick={() => handleGuess('real')}
                       disabled={controlsDisabled}
                     >
-                      Real Photo
+                      📸 Real Photo
                     </button>
                   </div>
-                  <p className="swipe-hint">Swipe left for AI, right for real — or tap the buttons / use ← → keys.</p>
+                  <p className="swipe-hint">Swipe left for AI 🤖, right for real 📸 — or tap the buttons / use ← → keys.</p>
                 </div>
                 <div
                   className={`image-card ${cardMotion !== 'idle' ? `motion-${cardMotion}` : ''}`}
@@ -599,24 +599,24 @@ function App() {
                 {isLoadingDeck ? (
                   <>
                     <span className="loading-pip" />
-                    <p>Streaming fresh heat from OpenFake…</p>
+                    <p>Streaming fresh heat from OpenFake… 🔥</p>
                   </>
                 ) : deckError ? (
                   <>
-                    <p>{deckError}</p>
+                    <p>{deckError} 😅</p>
                     <button type="button" onClick={() => loadDeck()}>
-                      Retry fetch
+                      Retry fetch 🔄
                     </button>
                   </>
                 ) : (
-                  <p>Cards will reload once new images arrive.</p>
+                  <p>Cards will reload once new images arrive. 📥</p>
                 )}
               </div>
             )}
             {showLoadingOverlay && (
               <div className="card-loading" aria-hidden>
                 <span className="loading-ring" />
-                <span>Loading new images…</span>
+                <span>Loading new images… 📷</span>
               </div>
             )}
           </div>
@@ -624,11 +624,11 @@ function App() {
           {feedback && (
             <div className={`feedback-chip ${feedback.correct ? 'hot' : 'slop'}`} role="status">
               <div className="feedback-primary">
-                <strong>{feedback.correct ? 'Hot!' : 'Slop!'}</strong>
+                <strong>{feedback.correct ? 'Hot! 🔥' : 'Slop! 🤢'}</strong>
                 <span>
                   {feedback.correct
-                    ? `You nailed it — that was ${feedback.answer === 'ai' ? 'AI generated' : 'a real capture'}.`
-                    : `It was actually ${feedback.answer === 'ai' ? 'AI generated' : 'a real photo'}.`}
+                    ? `You nailed it — that was ${feedback.answer === 'ai' ? 'AI generated' : 'a real capture'}. 🎯`
+                    : `It was actually ${feedback.answer === 'ai' ? 'AI generated' : 'a real photo'}. 😅`}
                 </span>
               </div>
               <p className="feedback-meta">
@@ -638,7 +638,7 @@ function App() {
           )}
 
           {currentCard && !isLoadingDeck && (
-            <p className="swipe-hint">Swipe left for AI, right for real — or tap the buttons / use ← → keys.</p>
+            <p className="swipe-hint">Swipe left for AI 🤖, right for real 📸 — or tap the buttons / use ← → keys.</p>
           )}
         </main>
       </div>
@@ -724,7 +724,7 @@ function App() {
             />
             <div className="leaderboard-table">
               {leaderboard.length === 0 ? (
-                <p className="leaderboard-empty">Be the first to log a score.</p>
+                <p className="leaderboard-empty">Be the first to log a score. 🥇</p>
               ) : (
                 <table>
                   <thead>
@@ -751,9 +751,9 @@ function App() {
                 </table>
               )}
               {playerRank >= 0 ? (
-                <p className="leaderboard-more">You are #{playerRank + 1}. Keep climbing.</p>
+                <p className="leaderboard-more">You are #{playerRank + 1}. Keep climbing. ⬆️</p>
               ) : (
-                <p className="leaderboard-more">Play a round to stake your claim.</p>
+                <p className="leaderboard-more">Play a round to stake your claim. 🎮</p>
               )}
             </div>
             <p className="leaderboard-license">
@@ -796,16 +796,16 @@ const Onboarding = ({ initialName, leaderboard, datasetUrl, datasetLicense, onCo
   const slides = useMemo(
     () => [
       {
-        title: 'Spot the synthetic',
-        body: 'One image at a time. Decide if what you see is a true capture or an AI fabrication.',
+        title: 'Spot the synthetic 👁️‍🗨️',
+        body: 'One image at a time. Decide if what you see is a true capture or an AI fabrication. 🤖',
       },
       {
-        title: 'Score with certainty',
-        body: 'Every correct call is +1, every miss is -1. Streaks push you up the leaderboard.',
+        title: 'Score with certainty 🎯',
+        body: 'Every correct call is +1, every miss is -1. Streaks push you up the leaderboard. 🏆',
       },
       {
-        title: 'Tag your run',
-        body: 'Images stream from the CC BY-SA 4.0 OpenFake dataset. Drop a handle so your score sticks.',
+        title: 'Tag your run 🏷️',
+        body: 'Images stream from the CC BY-SA 4.0 OpenFake dataset. Drop a handle so your score sticks. 💾',
       },
     ],
     []
@@ -838,7 +838,7 @@ const Onboarding = ({ initialName, leaderboard, datasetUrl, datasetLicense, onCo
   return (
     <div className="onboarding">
       <div className="onboarding-panel">
-        <span className="brand-mark">Hot or Slop</span>
+        <span className="brand-mark">Hot or Slop 🔥🤖</span>
         <h2>{slides[step].title}</h2>
         <p>{slides[step].body}</p>
         {step === slides.length - 1 && (
@@ -889,7 +889,7 @@ const Onboarding = ({ initialName, leaderboard, datasetUrl, datasetLicense, onCo
       <div className="onboarding-feed">
         <h3>Current heat check</h3>
         {topThree.length === 0 ? (
-          <p>No one on the board yet. Your run starts now.</p>
+          <p>No one on the board yet. Your run starts now. 🚀</p>
         ) : (
           <ul>
             {topThree.map((entry, index) => (
@@ -901,7 +901,7 @@ const Onboarding = ({ initialName, leaderboard, datasetUrl, datasetLicense, onCo
             ))}
           </ul>
         )}
-        <p className="onboarding-tip">Swipe left for AI, right for real. Buttons and keys work too.</p>
+        <p className="onboarding-tip">Swipe left for AI 🤖, right for real 📸. Buttons and keys work too!</p>
       </div>
     </div>
   )
