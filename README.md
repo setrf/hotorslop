@@ -75,7 +75,8 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
 - `services/openfake.ts`
   - Fetches synthetic candidates from OpenFake `test` split and real photos from COCO-Caption2017 `val`
   - Filters by allowed model prefixes (`real`, `imagen`, `gpt`, `flux`) and normalises human captions/prompts
-  - Prefetches decks ahead of time and enforces a 50/50 real-vs-fake balance
+  - Prefetches decks ahead of time, keeps client-side caches warm, and enforces a 50/50 real-vs-fake balance
+  - Pulls imagery directly in the browser – the backend never proxies or stores dataset assets, conserving server bandwidth
 - `services/api.ts` - Frontend API client for backend communication
 - UI is broken into minimal sections inside the main component to avoid additional global state managers. Hook usage includes `useCallback`/`useMemo` for derived state and memoized handlers.
 
@@ -177,6 +178,8 @@ server/
 - **Real photography**: [lmms-lab/COCO-Caption2017](https://huggingface.co/datasets/lmms-lab/COCO-Caption2017) — CC BY 4.0
 
 The Info modal reiterates the licenses and links to both dataset cards. Imagery is used strictly for demonstration/testing and not redistributed.
+
+All dataset requests originate from the client using the Hugging Face datasets server. Cached pools in `services/openfake.ts` minimise repeat downloads over a session and keep the backend isolated from third-party traffic.
 
 ## Future Improvements
 
