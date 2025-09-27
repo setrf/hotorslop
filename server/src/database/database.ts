@@ -84,4 +84,49 @@ function createTables(): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON game_sessions(user_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_score ON game_sessions(score DESC)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_end_time ON game_sessions(end_time DESC)');
+
+  // Analytics tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS analytics_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      client_session_id TEXT NOT NULL,
+      deck_id TEXT,
+      deck_size INTEGER,
+      device TEXT,
+      opted_in INTEGER DEFAULT 1,
+      started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      ended_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS analytics_guesses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL,
+      deck_id TEXT,
+      deck_position INTEGER,
+      card_id TEXT NOT NULL,
+      dataset_source TEXT NOT NULL,
+      label TEXT NOT NULL,
+      model TEXT,
+      prompt_length INTEGER,
+      guessed_answer TEXT NOT NULL,
+      correct INTEGER NOT NULL,
+      latency_ms INTEGER,
+      confidence REAL,
+      guess_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (session_id) REFERENCES analytics_sessions (id) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_analytics_sessions_client ON analytics_sessions(client_session_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_analytics_sessions_user ON analytics_sessions(user_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_analytics_guesses_session ON analytics_guesses(session_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_analytics_guesses_model ON analytics_guesses(model)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_analytics_guesses_dataset ON analytics_guesses(dataset_source)');
 }

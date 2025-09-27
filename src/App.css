@@ -565,6 +565,55 @@
   color: rgba(246, 244, 255, 0.62);
 }
 
+.info-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.85rem;
+}
+
+.metric-value {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: rgba(246, 244, 255, 0.94);
+}
+
+.metric-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: rgba(246, 244, 255, 0.55);
+}
+
+.dataset-breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: rgba(246, 244, 255, 0.82);
+}
+
+.dataset-breakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dataset-breakdown li span:last-child {
+  color: rgba(246, 244, 255, 0.62);
+  font-size: 0.78rem;
+}
+
+.info-footnote {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(246, 244, 255, 0.52);
+}
+
 .info-list {
   margin: 0;
   padding-left: 1.2rem;

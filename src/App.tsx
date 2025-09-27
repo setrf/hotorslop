@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import './App.css'
 import { fetchOpenFakeDeck, OPEN_FAKE_CONSTANTS, type HotOrSlopImage } from './services/openfake'
+import { analytics, fetchAnalyticsSummary, type AnalyticsSummary } from './services/analytics'
 
 type GuessType = 'ai' | 'real'
 
@@ -105,6 +106,15 @@ const DATASET_SOURCES: DatasetSource[] = [
   },
 ]
 
+const generateDeckId = () => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `deck_${Date.now()}_${Math.random().toString(16).slice(2)}`
+}
+
+const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+
 function App() {
   const [playerName, setPlayerName] = useState<string>(() => loadPlayerName())
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(() => loadLeaderboard())
@@ -136,11 +146,18 @@ function App() {
   const [feedback, setFeedback] = useState<GuessFeedback | null>(null)
   const [isLocked, setIsLocked] = useState(false)
   const [dragOffset, setDragOffset] = useState(0)
+  const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary | null>(null)
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null)
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false)
   const dragStartXRef = useRef<number | null>(null)
   const resultTimeoutRef = useRef<number | null>(null)
   const feedbackTimeoutRef = useRef<number | null>(null)
   const nextDeckRef = useRef<HotOrSlopImage[] | null>(null)
   const isPrefetchingRef = useRef(false)
+  const cardRevealTimeRef = useRef<number>(nowMs())
+  const currentDeckIdRef = useRef<string>(generateDeckId())
+  const nextDeckIdRef = useRef<string | null>(null)
+  const summaryFetchedRef = useRef(false)
 
   const overlayActive = showOnboarding || isLeaderboardOpen || isInfoOpen
 
@@ -155,6 +172,7 @@ function App() {
     try {
       const next = await fetchOpenFakeDeck({ count: DECK_SIZE })
       nextDeckRef.current = next
+      nextDeckIdRef.current = generateDeckId()
     } catch (error) {
       console.warn('Failed to prefetch OpenFake deck', error)
     } finally {
@@ -169,6 +187,10 @@ function App() {
       if (preferPrefetch && nextDeckRef.current) {
         const items = nextDeckRef.current
         nextDeckRef.current = null
+        const deckId = nextDeckIdRef.current ?? generateDeckId()
+        nextDeckIdRef.current = null
+        currentDeckIdRef.current = deckId
+        analytics.setDeck(deckId, items.length)
         setDeck(items)
         setCurrentIndex(0)
         setCardMotion('enter')
@@ -184,6 +206,9 @@ function App() {
       setIsLoadingDeck(true)
       try {
         const items = await fetchOpenFakeDeck({ count: DECK_SIZE })
+        const deckId = generateDeckId()
+        currentDeckIdRef.current = deckId
+        analytics.setDeck(deckId, items.length)
         setDeck(items)
         setCurrentIndex(0)
         setCardMotion('enter')
@@ -203,6 +228,15 @@ function App() {
   )
 
   useEffect(() => {
+    analytics.init({ deckSize: DECK_SIZE })
+  }, [])
+
+  useEffect(() => {
+    if (!playerName) return
+    analytics.setUsername(playerName)
+  }, [playerName])
+
+  useEffect(() => {
     loadDeck()
   }, [loadDeck])
 
@@ -214,9 +248,33 @@ function App() {
   }, [currentIndex, deck, prefetchDeck])
 
   useEffect(() => {
+    if (!currentCard) return
+    cardRevealTimeRef.current = nowMs()
+  }, [currentCard?.id])
+
+  useEffect(() => {
+    if (!isInfoOpen) return
+    if (summaryFetchedRef.current) return
+    setIsLoadingSummary(true)
+    setAnalyticsError(null)
+    fetchAnalyticsSummary()
+      .then((summary) => {
+        setAnalyticsSummary(summary)
+        summaryFetchedRef.current = true
+      })
+      .catch((error: unknown) => {
+        setAnalyticsError(error instanceof Error ? error.message : 'Unable to load analytics summary')
+      })
+      .finally(() => {
+        setIsLoadingSummary(false)
+      })
+  }, [isInfoOpen])
+
+  useEffect(() => {
     return () => {
       if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current)
       if (feedbackTimeoutRef.current) window.clearTimeout(feedbackTimeoutRef.current)
+      void analytics.flushNow()
     }
   }, [])
 
@@ -324,6 +382,22 @@ function App() {
       setDragOffset(0)
 
       const correct = currentCard.answer === guess
+      const latencyMs = Math.max(0, Math.round(nowMs() - (cardRevealTimeRef.current ?? nowMs())))
+      const datasetSource = currentCard.label === 'fake' ? 'synthetic' : 'real'
+
+      analytics.trackGuess({
+        deckId: currentDeckIdRef.current,
+        deckPosition: currentIndex,
+        cardId: currentCard.id,
+        datasetSource,
+        label: currentCard.label,
+        model: currentCard.model ?? null,
+        promptLength: currentCard.prompt?.length,
+        guessedAnswer: guess,
+        correct,
+        latencyMs,
+        timestamp: new Date().toISOString(),
+      })
 
       const nextScore = Math.max(0, score + (correct ? 1 : -1))
       const nextTotal = stats.total + 1
@@ -771,6 +845,44 @@ function App() {
                   </a>
                 ))}
               </div>
+            </section>
+            <section className="info-section">
+              <h3>Analytics preview</h3>
+              {isLoadingSummary ? (
+                <p className="info-text">Loading analytics…</p>
+              ) : analyticsError ? (
+                <p className="info-text">{analyticsError}</p>
+              ) : analyticsSummary ? (
+                <>
+                  <div className="info-metrics">
+                    <div>
+                      <span className="metric-value">{analyticsSummary.totalGuesses.toLocaleString()}</span>
+                      <span className="metric-label">Guesses logged</span>
+                    </div>
+                    <div>
+                      <span className="metric-value">{analyticsSummary.globalAccuracy}%</span>
+                      <span className="metric-label">Global accuracy</span>
+                    </div>
+                    <div>
+                      <span className="metric-value">{analyticsSummary.averageLatencyMs !== null ? `${analyticsSummary.averageLatencyMs.toLocaleString()} ms` : '—'}</span>
+                      <span className="metric-label">Avg reaction</span>
+                    </div>
+                  </div>
+                  <ul className="dataset-breakdown">
+                    {analyticsSummary.datasetBreakdown.map((entry) => (
+                      <li key={entry.datasetSource}>
+                        <span>{entry.datasetSource === 'synthetic' ? 'Synthetic cards' : 'Real cards'}</span>
+                        <span>{entry.guesses.toLocaleString()} guesses · {entry.accuracy}% accuracy</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="info-footnote">
+                    Community sample: {analyticsSummary.uniqueParticipants.toLocaleString()} players · {analyticsSummary.totalSessions.toLocaleString()} sessions logged. Detailed dashboards coming soon.
+                  </p>
+                </>
+              ) : (
+                <p className="info-text">Analytics will appear after the first deck is played.</p>
+              )}
             </section>
           </div>
         </div>

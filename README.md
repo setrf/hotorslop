@@ -101,6 +101,15 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
 ```bash
 # One-command setup for both frontend and backend
 bash setup.sh
+
+# …or manually install dependencies and start services
+npm install            # install frontend packages
+cd server
+npm install            # install backend packages
+cd ..
+
+npm run server         # Terminal 1 – start Express API on 3001
+npm run dev            # Terminal 2 – start Vite frontend on 5173
 ```
 
 ### Manual Setup
