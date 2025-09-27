@@ -65,7 +65,7 @@ const hasFinishedOnboarding = (): boolean => {
 
 const formatScore = (score: number): string => (score > 0 ? `+${score}` : `${score}`)
 
-const DECK_SIZE = 36
+const DECK_SIZE = 64
 
 const LEVEL_BANDS = [
   { name: 'Scout 👀', minScore: 0 },
