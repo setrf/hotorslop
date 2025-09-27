@@ -477,7 +477,7 @@ function App() {
         <header className="top-bar">
           <div className="brand-stack">
             <span className="brand-mark">Hot or Slop 🔥🤖</span>
-            <h1 className="brand-title">Call the fake. 👁️‍🗨️</h1>
+            <h1 className="brand-title">Call the fake.</h1>
           </div>
           <div className="header-actions">
             <button
@@ -574,7 +574,7 @@ function App() {
                       📸 Real Photo
                     </button>
                   </div>
-                  <p className="swipe-hint">Swipe left for AI 🤖, right for real 📸 — or tap the buttons / use ← → keys.</p>
+                  <p className="swipe-hint">Swipe left for AI, right for real — or tap the buttons / use ← → keys.</p>
                 </div>
                 <div
                   className={`image-card ${cardMotion !== 'idle' ? `motion-${cardMotion}` : ''}`}
@@ -638,7 +638,7 @@ function App() {
           )}
 
           {currentCard && !isLoadingDeck && (
-            <p className="swipe-hint">Swipe left for AI 🤖, right for real 📸 — or tap the buttons / use ← → keys.</p>
+            <p className="swipe-hint">Swipe left for AI, right for real — or tap the buttons / use ← → keys.</p>
           )}
         </main>
       </div>
@@ -901,7 +901,7 @@ const Onboarding = ({ initialName, leaderboard, datasetUrl, datasetLicense, onCo
             ))}
           </ul>
         )}
-        <p className="onboarding-tip">Swipe left for AI 🤖, right for real 📸. Buttons and keys work too!</p>
+        <p className="onboarding-tip">Swipe left for AI, right for real. Buttons and keys work too.</p>
       </div>
     </div>
   )
