@@ -70,6 +70,11 @@ type CocoRowsResponse = {
 let cachedSyntheticRowCount: number | null = null
 let cachedRealRowCount: number | null = null
 
+const log = (...args: unknown[]) => {
+  // Centralised logging so future suppression is easy.
+  console.info('[openfake]', ...args)
+}
+
 const labelToAnswerMap: Record<string, 'ai' | 'real'> = {
   fake: 'ai',
   real: 'real',
@@ -98,6 +103,7 @@ const getSyntheticRowCount = async (): Promise<number> => {
     throw new Error('Unable to determine dataset size for OpenFake synthetic split')
   }
   cachedSyntheticRowCount = count
+  log('Synthetic row count cached', { count })
   return count
 }
 
@@ -119,6 +125,7 @@ const getRealRowCount = async (): Promise<number> => {
     throw new Error('Unable to determine dataset size for COCO-Caption2017')
   }
   cachedRealRowCount = count
+  log('Real row count cached', { count })
   return count
 }
 
@@ -141,6 +148,7 @@ const fetchSyntheticRows = async (offset: number, limit: number): Promise<RowsRe
     throw new Error(`Failed to fetch synthetic rows: ${response.status}`)
   }
   const data = (await response.json()) as RowsResponse
+  log('Fetched synthetic batch', { offset, limit, size: data.rows?.length ?? 0 })
   return data.rows ?? []
 }
 
@@ -158,6 +166,7 @@ const fetchRealRows = async (offset: number, limit: number): Promise<CocoRowsRes
     throw new Error(`Failed to fetch real rows: ${response.status}`)
   }
   const data = (await response.json()) as CocoRowsResponse
+  log('Fetched real batch', { offset, limit, size: data.rows?.length ?? 0 })
   return data.rows ?? []
 }
 
@@ -248,6 +257,13 @@ const fetchSyntheticPool = async (desired: number, limitPerFetch: number): Promi
       if (!image) return
       deduped.set(image.id, image)
     })
+    log('Synthetic attempt complete', {
+      attempt,
+      deduped: deduped.size,
+      desired,
+      offset,
+      limit,
+    })
   }
 
   return shuffle(Array.from(deduped.values()))
@@ -269,6 +285,13 @@ const fetchRealPool = async (desired: number, limitPerFetch: number): Promise<Ho
       if (!image) return
       deduped.set(image.id, image)
     })
+    log('Real attempt complete', {
+      attempt,
+      deduped: deduped.size,
+      desired,
+      offset,
+      limit,
+    })
   }
 
   return shuffle(Array.from(deduped.values()))
@@ -282,11 +305,13 @@ export const fetchOpenFakeDeck = async ({
   const targetFake = Math.ceil(desired / 2)
   const targetReal = desired - targetFake
 
+  log('Fetching deck', { desired, targetFake, targetReal, limitPerFetch })
   const [fakePool, realPool] = await Promise.all([
     fetchSyntheticPool(Math.max(targetFake, desired), limitPerFetch),
     fetchRealPool(Math.max(targetReal, desired), limitPerFetch),
   ])
 
+  log('Pools ready', { fakePool: fakePool.length, realPool: realPool.length })
   if (fakePool.length === 0 && realPool.length === 0) {
     throw new Error('OpenFake request returned no usable images')
   }
@@ -295,6 +320,7 @@ export const fetchOpenFakeDeck = async ({
   const realSelection = realPool.slice(0, targetReal)
 
   let combined: HotOrSlopImage[] = [...fakeSelection, ...realSelection]
+  log('Initial selection', { combined: combined.length })
 
   if (combined.length < desired) {
     const fallbackPool = shuffle([
@@ -302,14 +328,18 @@ export const fetchOpenFakeDeck = async ({
       ...realPool.slice(targetReal),
     ])
     combined = [...combined, ...fallbackPool.slice(0, desired - combined.length)]
+    log('Applied fallback pool', { combined: combined.length })
   }
 
   if (combined.length < desired) {
     const emergencyPool = shuffle([...fakePool, ...realPool])
     combined = emergencyPool.slice(0, desired)
+    log('Applied emergency pool', { combined: combined.length })
   }
 
-  return shuffle(combined).slice(0, desired)
+  const finalDeck = shuffle(combined).slice(0, desired)
+  log('Deck ready', { final: finalDeck.length })
+  return finalDeck
 }
 
 export const OPEN_FAKE_CONSTANTS = {
