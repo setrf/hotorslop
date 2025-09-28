@@ -1,18 +1,19 @@
 # Hot or Slop Backend Server
 
-A Node.js/Express backend server for the Hot or Slop game that provides persistent score storage and global leaderboards.
+A Node.js/Express backend server for the Hot or Slop game that provides persistent score storage, analytics ingestion, and global leaderboards.
 
 ## Features
 
 - **User Management**: Simple username-based user identification (no authentication required)
 - **Score Persistence**: Save and retrieve game scores with detailed statistics
 - **Global Leaderboards**: Real-time leaderboards with filtering options
-- **Session Tracking**: Track individual game sessions and statistics
-- **SQLite Database**: Lightweight, file-based database for easy deployment
+- **Session Tracking**: Track individual game sessions, per-guess analytics, and aggregate accuracy trends
+- **sql.js Database**: Pure JavaScript SQLite runtime persisted to disk—no native builds required
+- **Analytics API**: Ingest batched guess events (`/api/analytics/ingest`) and expose summaries (`/api/analytics/summary`)
 
 ## Quick Start
 
-1. **Install dependencies:**
+1. **Install dependencies** (Node 18+ recommended; tested with Node 24):
    ```bash
    cd server
    npm install
@@ -47,6 +48,10 @@ The server will start on `http://localhost:3001` by default.
 - `GET /api/leaderboard/rank/:username` - Get user's rank
 - `GET /api/leaderboard/stats` - Get leaderboard statistics
 
+### Analytics
+- `POST /api/analytics/ingest` - Store a batch of analytics events from the client
+- `GET /api/analytics/summary` - Retrieve aggregate analytics for dashboards/UI widgets
+
 ## Database Schema
 
 ### Users Table
@@ -77,6 +82,7 @@ CREATE TABLE game_sessions (
 ## Development
 
 - **Database File**: `dev.db` (development) or `data/hotorslop.db` (production)
+- **Persistence**: sql.js writes the database to disk after each mutation—no WAL or native extensions needed
 - **Auto-migration**: Database tables are created automatically on startup
 - **Hot Reload**: Uses `tsx` for TypeScript development with hot reloading
 

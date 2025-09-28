@@ -57,9 +57,9 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
 
 ### Backend
 - [Node.js](https://nodejs.org/) + [Express.js](https://expressjs.com/) + [TypeScript](https://www.typescriptlang.org/)
-- [SQLite](https://www.sqlite.org/) with [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) for data persistence
+- [sql.js](https://sql.js.org/) (SQLite compiled to WebAssembly) for portable, zero-native-dependency persistence
 - [Zod](https://zod.dev/) for runtime type validation
-- RESTful API with CORS support
+- RESTful API with CORS support and analytics ingestion endpoints (works out of the box on Node 18+ including 24.x)
 
 ### Data Persistence
 - **Global leaderboards** with real-time ranking
@@ -78,14 +78,24 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
   - Prefetches decks ahead of time, keeps client-side caches warm, and enforces a 50/50 real-vs-fake balance
   - Pulls imagery directly in the browser – the backend never proxies or stores dataset assets, conserving server bandwidth
 - `services/api.ts` - Frontend API client for backend communication
+- `services/analytics.ts`
+  - Captures guess latency, dataset metadata, and player context entirely client side
+  - Buffers analytics events, flushes via `fetch`/`sendBeacon`, and pings `/api/analytics/summary` for UI previews
 - UI is broken into minimal sections inside the main component to avoid additional global state managers. Hook usage includes `useCallback`/`useMemo` for derived state and memoized handlers.
 
 ### Backend Architecture
 
-- **Database Layer** (`server/src/database/`): SQLite database with user and session management
+- **Database Layer** (`server/src/database/`): sql.js wrapper that mirrors SQLite semantics and persists to disk
 - **API Layer** (`server/src/routes/`): RESTful endpoints for users, scores, and leaderboards
 - **Service Layer** (`server/src/index.ts`): Express server with CORS, security, and routing
 - **Data Models**: Structured storage for users, game sessions, and leaderboard data
+- **Analytics Pipeline**: `/api/analytics/ingest` accepts batched guess events, `/api/analytics/summary` exposes aggregate stats for the in-app preview
+
+### Analytics
+
+- The Info panel’s “Analytics preview” reads from `/api/analytics/summary` and surfaces total guesses, community accuracy, reaction latency, and dataset breakdowns.
+- Telemetry is opt-in per session; events are buffered in the browser and flushed via `sendBeacon` when players navigate away.
+- Raw events are stored in `analytics_sessions` and `analytics_guesses`. Extend the backend summaries or build dashboards on top of those tables as needed.
 
 ### Data Flow
 

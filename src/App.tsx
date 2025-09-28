@@ -157,7 +157,20 @@ function App() {
   const cardRevealTimeRef = useRef<number>(nowMs())
   const currentDeckIdRef = useRef<string>(generateDeckId())
   const nextDeckIdRef = useRef<string | null>(null)
-  const summaryFetchedRef = useRef(false)
+
+  const fetchAnalyticsPreview = useCallback(async () => {
+    setIsLoadingSummary(true)
+    setAnalyticsError(null)
+    try {
+      const summary = await fetchAnalyticsSummary()
+      setAnalyticsSummary(summary)
+    } catch (error) {
+      setAnalyticsSummary(null)
+      setAnalyticsError(error instanceof Error ? error.message : 'Unable to load analytics summary')
+    } finally {
+      setIsLoadingSummary(false)
+    }
+  }, [])
 
   const overlayActive = showOnboarding || isLeaderboardOpen || isInfoOpen
 
@@ -254,21 +267,8 @@ function App() {
 
   useEffect(() => {
     if (!isInfoOpen) return
-    if (summaryFetchedRef.current) return
-    setIsLoadingSummary(true)
-    setAnalyticsError(null)
-    fetchAnalyticsSummary()
-      .then((summary) => {
-        setAnalyticsSummary(summary)
-        summaryFetchedRef.current = true
-      })
-      .catch((error: unknown) => {
-        setAnalyticsError(error instanceof Error ? error.message : 'Unable to load analytics summary')
-      })
-      .finally(() => {
-        setIsLoadingSummary(false)
-      })
-  }, [isInfoOpen])
+    void fetchAnalyticsPreview()
+  }, [fetchAnalyticsPreview, isInfoOpen])
 
   useEffect(() => {
     return () => {
@@ -399,6 +399,17 @@ function App() {
         timestamp: new Date().toISOString(),
       })
 
+      void analytics
+        .flushNow()
+        .then(() => {
+          if (isInfoOpen) {
+            void fetchAnalyticsPreview()
+          }
+        })
+        .catch(() => {
+          // Swallow flush errors; UI already shows ingest state via summary load failures.
+        })
+
       const nextScore = Math.max(0, score + (correct ? 1 : -1))
       const nextTotal = stats.total + 1
       const nextCorrect = stats.correct + (correct ? 1 : 0)
@@ -465,7 +476,21 @@ function App() {
         setIsLocked(false)
       }, 820)
     },
-    [advanceCard, currentCard, isLocked, playerName, scheduleFeedbackClear, score, stats.correct, stats.total, streak, updateLeaderboard]
+    [
+      advanceCard,
+      currentCard,
+      fetchAnalyticsPreview,
+      isInfoOpen,
+      isLocked,
+      perfectDeckStreak,
+      playerName,
+      scheduleFeedbackClear,
+      score,
+      stats.correct,
+      stats.total,
+      streak,
+      updateLeaderboard,
+    ]
   )
 
   const handlePointerDown = useCallback(
