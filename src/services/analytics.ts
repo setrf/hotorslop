@@ -33,17 +33,51 @@ export type GuessEventPayload = {
   timestamp?: string;
 };
 
-export type AnalyticsSummary = {
+export type AnalyticsOverview = {
   totalSessions: number;
   totalGuesses: number;
   uniqueParticipants: number;
   globalAccuracy: number;
   averageLatencyMs: number | null;
-  datasetBreakdown: Array<{
-    datasetSource: DatasetSource;
-    guesses: number;
-    accuracy: number;
-  }>;
+  firstGuessAt: string | null;
+  lastGuessAt: string | null;
+  activeDecks: number;
+  datasetCount: number;
+  modelCount: number;
+  guessesLast24h: number;
+  guessesLast7d: number;
+};
+
+export type DatasetInsight = {
+  datasetSource: DatasetSource;
+  guesses: number;
+  accuracy: number;
+  averageLatencyMs: number | null;
+  lastGuessAt: string | null;
+};
+
+export type ModelInsight = {
+  model: string;
+  datasetSource: DatasetSource;
+  guesses: number;
+  accuracy: number;
+  averageLatencyMs: number | null;
+  lastGuessAt: string | null;
+};
+
+export type TimelinePoint = {
+  bucket: string;
+  guesses: number;
+  accuracy: number;
+};
+
+export type PlayerInsight = {
+  player: string;
+  guesses: number;
+  sessions: number;
+  accuracy: number;
+  averageLatencyMs: number | null;
+  lastGuessAt: string | null;
 };
 
 type FlushOptions = {
@@ -223,19 +257,44 @@ export const analytics = {
   }
 };
 
-export async function fetchAnalyticsSummary(): Promise<AnalyticsSummary> {
-  const response = await fetch(`${API_BASE_URL}/analytics/summary`, {
-    headers: { 'Content-Type': 'application/json' }
+const getJson = async <T>(endpoint: string): Promise<T> => {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    headers: { 'Content-Type': 'application/json' },
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch analytics summary: ${response.status}`);
+    throw new Error(`Failed to fetch ${endpoint}: ${response.status}`);
   }
 
   const json = await response.json();
   if (!json.success) {
-    throw new Error(json.error || 'Analytics summary unavailable');
+    throw new Error(json.error || `Request to ${endpoint} failed`);
   }
 
-  return json.summary as AnalyticsSummary;
+  return json as T;
+};
+
+export async function fetchAnalyticsOverview(): Promise<AnalyticsOverview> {
+  const data = await getJson<{ success: true; overview: AnalyticsOverview }>('/analytics/overview');
+  return data.overview;
+}
+
+export async function fetchAnalyticsDatasetInsights(): Promise<DatasetInsight[]> {
+  const data = await getJson<{ success: true; datasets: DatasetInsight[] }>('/analytics/datasets');
+  return data.datasets;
+}
+
+export async function fetchAnalyticsModelInsights(): Promise<ModelInsight[]> {
+  const data = await getJson<{ success: true; models: ModelInsight[] }>('/analytics/models');
+  return data.models;
+}
+
+export async function fetchAnalyticsTimeline(range: '7d' | '30d' | '90d' = '30d'): Promise<TimelinePoint[]> {
+  const data = await getJson<{ success: true; timeline: TimelinePoint[] }>(`/analytics/timeline?range=${range}`);
+  return data.timeline;
+}
+
+export async function fetchAnalyticsPlayers(): Promise<PlayerInsight[]> {
+  const data = await getJson<{ success: true; players: PlayerInsight[] }>('/analytics/players');
+  return data.players;
 }

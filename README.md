@@ -81,6 +81,7 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
 - `services/analytics.ts`
   - Captures guess latency, dataset metadata, and player context entirely client side
   - Buffers analytics events, flushes via `fetch`/`sendBeacon`, and pings `/api/analytics/summary` for UI previews
+  - Powers the internal analytics dashboard (header ➜ Analytics) with rich overview, dataset, model, timeline, and player insights
 - UI is broken into minimal sections inside the main component to avoid additional global state managers. Hook usage includes `useCallback`/`useMemo` for derived state and memoized handlers.
 
 ### Backend Architecture
@@ -93,7 +94,7 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
 
 ### Analytics
 
-- The Info panel’s “Analytics preview” reads from `/api/analytics/summary` and surfaces total guesses, community accuracy, reaction latency, and dataset breakdowns.
+- The internal dashboard (tap **Analytics** in the header) pulls from `/api/analytics/overview`, `/datasets`, `/models`, `/timeline`, and `/players` to surface advanced stats.
 - Telemetry is opt-in per session; events are buffered in the browser and flushed via `sendBeacon` when players navigate away.
 - Raw events are stored in `analytics_sessions` and `analytics_guesses`. Extend the backend summaries or build dashboards on top of those tables as needed.
 

@@ -51,6 +51,11 @@ The server will start on `http://localhost:3001` by default.
 ### Analytics
 - `POST /api/analytics/ingest` - Store a batch of analytics events from the client
 - `GET /api/analytics/summary` - Retrieve aggregate analytics for dashboards/UI widgets
+- `GET /api/analytics/overview` - Expanded totals, accuracy, activity windows, and metadata counts
+- `GET /api/analytics/datasets` - Per-dataset accuracy, latency, and volume metrics
+- `GET /api/analytics/models` - Top models by guesses with accuracy and recency
+- `GET /api/analytics/timeline` - Time bucketed guesses/accuracy (supports `range=7d|30d|90d`)
+- `GET /api/analytics/players` - Opted-in player performance summaries
 
 ## Database Schema
 

@@ -1216,3 +1216,151 @@
   text-align: left;
   margin-top: 0.25rem;
 }
+
+.analytics-layer {
+  align-items: flex-start;
+  padding: 4vh 3vw;
+}
+
+.analytics-panel {
+  width: min(1024px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: rgba(18, 11, 42, 0.95);
+  border-radius: 26px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 40px 90px rgba(8, 2, 24, 0.55);
+}
+
+.analytics-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.analytics-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.analytics-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.analytics-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
+.analytics-metric-grid article {
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  background: rgba(26, 18, 48, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.analytics-metric-grid .metric-span {
+  grid-column: span 2;
+}
+
+.metric-value.subtle {
+  font-size: 0.9rem;
+  color: rgba(246, 244, 255, 0.72);
+  font-weight: 500;
+}
+
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(26, 18, 48, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.analytics-table th,
+.analytics-table td {
+  padding: 0.7rem 1rem;
+  text-align: left;
+  font-size: 0.82rem;
+}
+
+.analytics-table th {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(246, 244, 255, 0.62);
+}
+
+.analytics-table tbody tr:not(:last-child) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.range-toggle {
+  display: inline-flex;
+  gap: 0.35rem;
+  background: rgba(26, 18, 48, 0.7);
+  padding: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.range-toggle button {
+  border: none;
+  background: transparent;
+  color: rgba(246, 244, 255, 0.72);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.range-toggle button.active {
+  background: rgba(94, 196, 255, 0.18);
+  color: #e9fbff;
+}
+
+.timeline-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgba(26, 18, 48, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.timeline-card header {
+  display: flex;
+  gap: 1rem;
+}
+
+.timeline-card header > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.analytics-actions .secondary-button {
+  background: rgba(90, 197, 255, 0.12);
+}

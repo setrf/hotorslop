@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import './App.css'
 import { fetchOpenFakeDeck, OPEN_FAKE_CONSTANTS, type HotOrSlopImage } from './services/openfake'
-import { analytics, fetchAnalyticsSummary, type AnalyticsSummary } from './services/analytics'
+import { analytics } from './services/analytics'
+import AdminAnalyticsPanel from './components/AdminAnalyticsPanel'
 
 type GuessType = 'ai' | 'real'
 
@@ -122,17 +123,18 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(initialOnboardingNeeded)
   const [isInfoOpen, setIsInfoOpen] = useState(false)
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false)
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false)
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined
     const originalOverflow = document.body.style.overflow
-    if (showOnboarding || isLeaderboardOpen || isInfoOpen) {
+    if (showOnboarding || isLeaderboardOpen || isInfoOpen || isAnalyticsOpen) {
       document.body.style.overflow = 'hidden'
     }
     return () => {
       document.body.style.overflow = originalOverflow
     }
-  }, [isInfoOpen, isLeaderboardOpen, showOnboarding])
+  }, [isAnalyticsOpen, isInfoOpen, isLeaderboardOpen, showOnboarding])
 
   const [deck, setDeck] = useState<HotOrSlopImage[]>([])
   const [isLoadingDeck, setIsLoadingDeck] = useState(true)
@@ -146,9 +148,6 @@ function App() {
   const [feedback, setFeedback] = useState<GuessFeedback | null>(null)
   const [isLocked, setIsLocked] = useState(false)
   const [dragOffset, setDragOffset] = useState(0)
-  const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary | null>(null)
-  const [analyticsError, setAnalyticsError] = useState<string | null>(null)
-  const [isLoadingSummary, setIsLoadingSummary] = useState(false)
   const dragStartXRef = useRef<number | null>(null)
   const resultTimeoutRef = useRef<number | null>(null)
   const feedbackTimeoutRef = useRef<number | null>(null)
@@ -158,21 +157,7 @@ function App() {
   const currentDeckIdRef = useRef<string>(generateDeckId())
   const nextDeckIdRef = useRef<string | null>(null)
 
-  const fetchAnalyticsPreview = useCallback(async () => {
-    setIsLoadingSummary(true)
-    setAnalyticsError(null)
-    try {
-      const summary = await fetchAnalyticsSummary()
-      setAnalyticsSummary(summary)
-    } catch (error) {
-      setAnalyticsSummary(null)
-      setAnalyticsError(error instanceof Error ? error.message : 'Unable to load analytics summary')
-    } finally {
-      setIsLoadingSummary(false)
-    }
-  }, [])
-
-  const overlayActive = showOnboarding || isLeaderboardOpen || isInfoOpen
+  const overlayActive = showOnboarding || isLeaderboardOpen || isInfoOpen || isAnalyticsOpen
 
   const currentCard = deck[currentIndex]
   const accuracy = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0
@@ -264,11 +249,6 @@ function App() {
     if (!currentCard) return
     cardRevealTimeRef.current = nowMs()
   }, [currentCard?.id])
-
-  useEffect(() => {
-    if (!isInfoOpen) return
-    void fetchAnalyticsPreview()
-  }, [fetchAnalyticsPreview, isInfoOpen])
 
   useEffect(() => {
     return () => {
@@ -399,16 +379,9 @@ function App() {
         timestamp: new Date().toISOString(),
       })
 
-      void analytics
-        .flushNow()
-        .then(() => {
-          if (isInfoOpen) {
-            void fetchAnalyticsPreview()
-          }
-        })
-        .catch(() => {
-          // Swallow flush errors; UI already shows ingest state via summary load failures.
-        })
+      void analytics.flushNow().catch(() => {
+        // Swallow flush errors; analytics dashboards surface failures separately.
+      })
 
       const nextScore = Math.max(0, score + (correct ? 1 : -1))
       const nextTotal = stats.total + 1
@@ -479,8 +452,6 @@ function App() {
     [
       advanceCard,
       currentCard,
-      fetchAnalyticsPreview,
-      isInfoOpen,
       isLocked,
       perfectDeckStreak,
       playerName,
@@ -625,7 +596,11 @@ function App() {
 
   const controlsDisabled = isLocked || isLoadingDeck || !currentCard || overlayActive
   const showLoadingOverlay = isLoadingDeck && deck.length > 0
-  const shellClassName = ['app-shell', showOnboarding ? 'splash-active' : '', (isLeaderboardOpen || isInfoOpen) && !showOnboarding ? 'panel-active' : '']
+  const shellClassName = [
+    'app-shell',
+    showOnboarding ? 'splash-active' : '',
+    (isLeaderboardOpen || isInfoOpen || isAnalyticsOpen) && !showOnboarding ? 'panel-active' : '',
+  ]
     .filter(Boolean)
     .join(' ')
 
@@ -657,6 +632,16 @@ function App() {
               disabled={overlayActive && !isLeaderboardOpen}
             >
               Leaderboard 🏆
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => setIsAnalyticsOpen(true)}
+              aria-expanded={isAnalyticsOpen}
+              aria-controls="analytics-panel"
+              disabled={overlayActive && !isAnalyticsOpen}
+            >
+              Analytics 📊
             </button>
           </div>
         </header>
@@ -871,44 +856,6 @@ function App() {
                 ))}
               </div>
             </section>
-            <section className="info-section">
-              <h3>Analytics preview</h3>
-              {isLoadingSummary ? (
-                <p className="info-text">Loading analytics…</p>
-              ) : analyticsError ? (
-                <p className="info-text">{analyticsError}</p>
-              ) : analyticsSummary ? (
-                <>
-                  <div className="info-metrics">
-                    <div>
-                      <span className="metric-value">{analyticsSummary.totalGuesses.toLocaleString()}</span>
-                      <span className="metric-label">Guesses logged</span>
-                    </div>
-                    <div>
-                      <span className="metric-value">{analyticsSummary.globalAccuracy}%</span>
-                      <span className="metric-label">Global accuracy</span>
-                    </div>
-                    <div>
-                      <span className="metric-value">{analyticsSummary.averageLatencyMs !== null ? `${analyticsSummary.averageLatencyMs.toLocaleString()} ms` : '—'}</span>
-                      <span className="metric-label">Avg reaction</span>
-                    </div>
-                  </div>
-                  <ul className="dataset-breakdown">
-                    {analyticsSummary.datasetBreakdown.map((entry) => (
-                      <li key={entry.datasetSource}>
-                        <span>{entry.datasetSource === 'synthetic' ? 'Synthetic cards' : 'Real cards'}</span>
-                        <span>{entry.guesses.toLocaleString()} guesses · {entry.accuracy}% accuracy</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="info-footnote">
-                    Community sample: {analyticsSummary.uniqueParticipants.toLocaleString()} players · {analyticsSummary.totalSessions.toLocaleString()} sessions logged. Detailed dashboards coming soon.
-                  </p>
-                </>
-              ) : (
-                <p className="info-text">Analytics will appear after the first deck is played.</p>
-              )}
-            </section>
           </div>
         </div>
       )}
@@ -975,6 +922,10 @@ function App() {
             </p>
           </div>
         </div>
+      )}
+
+      {isAnalyticsOpen && (
+        <AdminAnalyticsPanel onClose={() => setIsAnalyticsOpen(false)} />
       )}
 
       {showOnboarding && (
