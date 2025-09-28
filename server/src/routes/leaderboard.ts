@@ -26,31 +26,45 @@ router.get('/', async (req, res) => {
     const leaderboard = db.prepare(`
       SELECT
         u.username,
+        COALESCE(current_session.score, MAX(gs.score)) as current_score,
         MAX(gs.score) as high_score,
         SUM(gs.rounds_played) as total_rounds,
         COUNT(gs.id) as sessions_played,
         MAX(gs.end_time) as last_played,
-        ROUND(AVG(CAST(gs.correct_answers AS FLOAT) / gs.rounds_played) * 100) as avg_accuracy
+        ROUND(AVG(CAST(gs.correct_answers AS FLOAT) / gs.rounds_played) * 100) as avg_accuracy,
+        CASE WHEN current_session.id IS NOT NULL THEN 1 ELSE 0 END as has_active_session
       FROM users u
-      INNER JOIN game_sessions gs ON u.id = gs.user_id ${dateFilter}
+      LEFT JOIN game_sessions gs ON u.id = gs.user_id ${dateFilter}
+      LEFT JOIN (
+        SELECT DISTINCT
+          user_id,
+          FIRST_VALUE(score) OVER (PARTITION BY user_id ORDER BY start_time DESC) as score,
+          FIRST_VALUE(id) OVER (PARTITION BY user_id ORDER BY start_time DESC) as id
+        FROM game_sessions
+        WHERE end_time IS NULL
+      ) current_session ON u.id = current_session.user_id
       GROUP BY u.id, u.username
-      ORDER BY high_score DESC, total_rounds DESC
+      ORDER BY current_score DESC, high_score DESC, total_rounds DESC
       LIMIT ?
     `).all(limit) as any[];
 
     res.json({
       success: true,
-      timeframe,
-      total_players: leaderboard.length,
-      leaderboard: leaderboard.map((entry, index) => ({
-        rank: index + 1,
-        username: entry.username,
-        high_score: entry.high_score,
-        total_rounds: entry.total_rounds,
-        sessions_played: entry.sessions_played,
-        avg_accuracy: entry.avg_accuracy || 0,
-        last_played: entry.last_played
-      }))
+      data: {
+        timeframe,
+        total_players: leaderboard.length,
+        leaderboard: leaderboard.map((entry, index) => ({
+          rank: index + 1,
+          username: entry.username,
+          current_score: entry.current_score || 0,
+          high_score: entry.high_score || 0,
+          total_rounds: entry.total_rounds || 0,
+          sessions_played: entry.sessions_played || 0,
+          avg_accuracy: entry.avg_accuracy || 0,
+          last_played: entry.last_played,
+          is_active: entry.has_active_session === 1
+        }))
+      }
     });
   } catch (error) {
     console.error('Get leaderboard error:', error);
@@ -157,5 +171,6 @@ router.get('/stats', async (_req, res) => {
     });
   }
 });
+
 
 export { router as leaderboardRoutes };

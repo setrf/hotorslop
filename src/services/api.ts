@@ -26,11 +26,13 @@ export interface GameSession {
 export interface LeaderboardEntry {
   rank: number;
   username: string;
+  current_score: number;
   high_score: number;
   total_rounds: number;
   sessions_played: number;
   avg_accuracy: number;
   last_played: string;
+  is_active: boolean;
 }
 
 export interface ApiResponse<T> {
@@ -107,6 +109,28 @@ export async function getUserBestScore(username: string): Promise<GameSession | 
   } catch (error) {
     return null;
   }
+}
+
+export async function saveGuess(
+  username: string,
+  scoreChange: number,
+  correct: boolean,
+  deckSize: number = 64
+): Promise<{
+  session_id: number;
+  current_score: number;
+  rounds_played: number;
+  correct_answers: number;
+}> {
+  return apiRequest('/scores/guess', {
+    method: 'POST',
+    body: JSON.stringify({
+      username,
+      score_change: scoreChange,
+      correct,
+      deck_size: deckSize,
+    }),
+  });
 }
 
 // Leaderboard API functions

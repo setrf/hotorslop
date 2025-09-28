@@ -1,10 +1,12 @@
-# Hot or Slop
+# Hot or Slop 🔥🤖
 
-Hot or Slop is a single-page React + TypeScript experience that challenges players to spot AI-generated imagery among real-world captures. Synthetic cards stream in real time from the [ComplexDataLab/OpenFake](https://huggingface.co/datasets/ComplexDataLab/OpenFake) dataset, while real photos now come from the [lmms-lab/COCO-Caption2017](https://huggingface.co/datasets/lmms-lab/COCO-Caption2017) collection. Each guess updates your score, level, and local leaderboard position instantly.
+**"Call the fake"** - A real-time, competitive game that challenges players to distinguish between AI-generated images and real photographs. Features live global leaderboards, real-time score updates, and advanced analytics.
 
 <p align="center">
   <img src="docs/screenshot-main.png" alt="Hot or Slop main screen" width="520" />
 </p>
+
+**🎯 Real-time AI Detection Game** • **🏆 Global Leaderboards** • **📊 Advanced Analytics** • **⚡ Live Score Updates**
 
 ## Table of Contents
 
@@ -23,11 +25,14 @@ Hot or Slop is a single-page React + TypeScript experience that challenges playe
 
 ## Gameplay Overview
 
-- **Swipe or tap** – Mark each card `AI Generated` or `Real Photo` (keyboard shortcuts ← / → also work).
-- **Immediate feedback** – A Hot/Slop chip confirms your guess and, for synthetic cards, exposes the generator model.
-- **Balanced decks** – Every deck is automatically split 50/50 between real and fake images and prefetched so rapid swiping stays smooth.
-- **Heads-up stats** – Score, rounds played, accuracy, streak, and level progression are always visible above the card.
-- **Info panel** – Summaries of the current image, dataset details, and the full level list live in the `Info` modal.
+- **Real-time guessing** – Swipe, tap, or use keyboard shortcuts (← / →) to mark each card as `AI Generated` or `Real Photo`
+- **Instant feedback** – A Hot/Slop chip confirms your guess with motivational messages and streak tracking
+- **Live score updates** – Each guess immediately updates your score (+1 for correct, -1 for incorrect) and saves to the server
+- **Smart deck management** – Every deck is automatically balanced 50/50 between real and fake images with intelligent prefetching
+- **Active player indicators** – See which players are currently playing with green dot (🟢) indicators on the leaderboard
+- **Comprehensive stats** – Score, rounds played, accuracy, streak, and level progression are always visible
+- **Detailed info panel** – Current image metadata, dataset details, and complete level progression guide
+- **Session persistence** – Continue where you left off across browser sessions
 
 ## Progression & Levels
 
@@ -44,9 +49,13 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
 
 ## Leaderboard & Percentiles
 
-- **Local storage only** – Scores, rounds, and updated timestamps are kept in `localStorage` per device.
-- **Percentile curve** – The leaderboard modal plots your score relative to stored runs (including the current session) and shows a ranked table with rounds and score.
-- **Rounding rules** – Only the best score per player handle is persisted, and values never drop below 0.
+- **Real-time global leaderboards** – Rankings update instantly with each guess across all connected players
+- **Active player tracking** – Green dot (🟢) indicators show who's currently playing
+- **Current score display** – See live scores for ongoing games, not just final scores
+- **Session-based persistence** – Each guess creates/updates a database session with current score and statistics
+- **Percentile curve** – Visual representation of your performance relative to all players
+- **Timeframe filtering** – View leaderboards for all-time, weekly, or monthly periods
+- **Cross-platform sync** – Scores persist on the server and sync across different devices/sessions
 
 ## Tech Stack
 
@@ -61,11 +70,13 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
 - [Zod](https://zod.dev/) for runtime type validation
 - RESTful API with CORS support and analytics ingestion endpoints (works out of the box on Node 18+ including 24.x)
 
-### Data Persistence
-- **Global leaderboards** with real-time ranking
-- **User score history** with detailed statistics
-- **Session tracking** for gameplay analytics
-- **Cross-device progress** sync via username
+### Data Persistence & Real-time Features
+- **Real-time score updates** – Individual guesses saved via `/api/scores/guess` endpoint with immediate leaderboard refresh
+- **Live session tracking** – Current game sessions with active status indicators and real-time score display
+- **Global leaderboards** – Server-side rankings with current scores, active player status, and timeframe filtering
+- **Session management** – Automatic session creation/update with each guess, maintaining game state
+- **Cross-platform sync** – Server-persisted scores accessible across different devices and sessions
+- **Advanced analytics** – Comprehensive gameplay metrics, model performance tracking, and user behavior insights
 
 ## Architecture
 
@@ -101,9 +112,10 @@ Levels are tied to cumulative score (clamped at a minimum of 0) and stored local
 ### Data Flow
 
 1. **User Registration**: Frontend sends username to `/api/users/register`
-2. **Score Saving**: Game sessions are saved to `/api/scores/save` with full statistics
-3. **Leaderboard Queries**: Global rankings fetched from `/api/leaderboard`
-4. **Cross-Session Persistence**: Users can return and continue with existing scores
+2. **Real-time Score Updates**: Each guess triggers `/api/scores/guess` with immediate score changes and session updates
+3. **Live Leaderboard Updates**: Frontend refreshes `/api/leaderboard` after each guess to show current rankings
+4. **Session Management**: Automatic session creation/maintenance with active status tracking
+5. **Cross-Session Persistence**: Users can return and continue with existing server-persisted scores
 
 ## Development Workflow
 
@@ -201,14 +213,27 @@ The Info modal reiterates the licenses and links to both dataset cards. Imagery 
 
 All dataset requests originate from the client using the Hugging Face datasets server. Cached pools in `services/openfake.ts` minimise repeat downloads over a session and keep the backend isolated from third-party traffic.
 
+## Key Features Implemented ✅
+
+- **Real-time global leaderboards** with live score updates
+- **Active player indicators** showing who's currently playing
+- **Individual guess tracking** with immediate score persistence
+- **Session-based gameplay** with automatic state management
+- **Advanced analytics dashboard** with comprehensive metrics
+- **Cross-platform score synchronization** via server persistence
+- **Smart deck balancing** with 50/50 real vs AI image distribution
+- **Comprehensive onboarding** with scoring explanation and dataset credits
+
 ## Future Improvements
 
-- Global leaderboards (Supabase or serverless endpoint)
-- Practice round during onboarding to acclimate first-time players
-- Accessibility mode with higher contrast and larger hit targets
-- Weekly season resets with history snapshots
-- Additional generator filters and quick-difficulty switches
-- Telemetry (time-to-guess, per-model accuracy) surfaced in the Info panel
+- **WebSocket integration** for true real-time multiplayer interactions
+- **Practice mode** during onboarding to help new players learn
+- **Accessibility enhancements** with higher contrast and larger touch targets
+- **Seasonal resets** with historical data preservation and achievements
+- **Mobile app** with native swipe gestures and offline capability
+- **Advanced difficulty modes** with model-specific challenges
+- **Social features** like friend challenges and score sharing
+- **Tournament mode** with bracket-style competitions
 
 ## Contributing
 

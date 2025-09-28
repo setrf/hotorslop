@@ -84,8 +84,8 @@ const shuffle = <T,>(items: T[]): T[] => {
   return copy
 }
 
-const MAX_CACHE_SIZE = 240
-const MAX_FETCH_ATTEMPTS = 6
+const MAX_CACHE_SIZE = 600
+const MAX_FETCH_ATTEMPTS = 2
 
 const syntheticCacheQueue: HotOrSlopImage[] = []
 const syntheticCacheIds = new Set<string>()
@@ -329,7 +329,7 @@ const drawSyntheticCards = async (count: number, limitPerFetch: number): Promise
 
   for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS && result.length < count; attempt += 1) {
     const remaining = Math.max(count - result.length, 1)
-    const limit = Math.min(limitPerFetch, Math.max(remaining * 3, 20))
+    const limit = Math.min(limitPerFetch, Math.max(remaining * 2, 12))
     const maxOffset = Math.max(totalRows - limit, 0)
     const offset = Math.floor(Math.random() * (maxOffset + 1))
 
@@ -419,16 +419,19 @@ const drawRealCards = async (count: number, limitPerFetch: number): Promise<HotO
 
 export const fetchOpenFakeDeck = async ({
   count = 24,
-  limitPerFetch = 60,
+  limitPerFetch = 40,
 }: FetchDeckParams = {}): Promise<HotOrSlopImage[]> => {
   const desired = Math.max(8, count)
   const targetFake = Math.ceil(desired / 2)
   const targetReal = desired - targetFake
 
-  log('Fetching deck', { desired, targetFake, targetReal, limitPerFetch })
+  // Use smaller limit for faster initial response
+  const fastLimit = Math.min(limitPerFetch, 20)
+
+  log('Fetching deck', { desired, targetFake, targetReal, limitPerFetch: fastLimit })
   const [initialFake, initialReal] = await Promise.all([
-    drawSyntheticCards(targetFake, limitPerFetch),
-    drawRealCards(targetReal, limitPerFetch),
+    drawSyntheticCards(targetFake, fastLimit),
+    drawRealCards(targetReal, fastLimit),
   ])
 
   let combined: HotOrSlopImage[] = [...initialFake, ...initialReal]

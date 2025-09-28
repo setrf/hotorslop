@@ -2,12 +2,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import './App.css'
 import { fetchOpenFakeDeck, OPEN_FAKE_CONSTANTS, type HotOrSlopImage } from './services/openfake'
+
 import { analytics } from './services/analytics'
 import AdminAnalyticsPanel from './components/AdminAnalyticsPanel'
 
 type GuessType = 'ai' | 'real'
 
+import { getLeaderboard, saveGuess } from './services/api'
 type LeaderboardEntry = {
+  rank: number;
+  username: string;
+  current_score: number;
+  high_score: number;
+  total_rounds: number;
+  sessions_played: number;
+  avg_accuracy: number;
+  last_played: string;
+  is_active: boolean;
+}
+
+// This type is used for the local state before it is sorted and ranked
+type LocalLeaderboardEntry = {
   name: string
   score: number
   rounds: number
@@ -29,33 +44,6 @@ const PLAYER_STORAGE_KEY = 'hotorslop_player_name'
 const LEADERBOARD_STORAGE_KEY = 'hotorslop_leaderboard'
 const ONBOARDING_STORAGE_KEY = 'hotorslop_onboarded'
 
-const sortAndTrimLeaderboard = (entries: LeaderboardEntry[]): LeaderboardEntry[] =>
-  [...entries]
-    .sort((a, b) => {
-      if (b.score === a.score) {
-        return a.updatedAt - b.updatedAt
-      }
-      return b.score - a.score
-    })
-    .slice(0, 10)
-
-const loadLeaderboard = (): LeaderboardEntry[] => {
-  if (typeof window === 'undefined') return []
-  const raw = window.localStorage.getItem(LEADERBOARD_STORAGE_KEY)
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw) as LeaderboardEntry[]
-    if (!Array.isArray(parsed)) return []
-    return sortAndTrimLeaderboard(parsed.filter(Boolean).map((entry) => ({
-      ...entry,
-      score: typeof entry.score === 'number' ? Math.max(0, entry.score) : 0,
-      rounds: typeof entry.rounds === 'number' ? entry.rounds : 0,
-    })))
-  } catch (error) {
-    console.warn('Could not parse leaderboard from storage', error)
-    return []
-  }
-}
 
 const loadPlayerName = (): string => {
   if (typeof window === 'undefined') return ''
@@ -69,7 +57,7 @@ const hasFinishedOnboarding = (): boolean => {
 
 const formatScore = (score: number): string => (score > 0 ? `+${score}` : `${score}`)
 
-const DECK_SIZE = 64
+const DECK_SIZE = 16
 
 const LEVEL_BANDS = [
   { name: 'Scout 👀', minScore: 0 },
@@ -116,9 +104,10 @@ const generateDeckId = () => {
 
 const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
 
+
 function App() {
   const [playerName, setPlayerName] = useState<string>(() => loadPlayerName())
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(() => loadLeaderboard())
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const initialOnboardingNeeded = useMemo(() => !(hasFinishedOnboarding() && loadPlayerName()), [])
   const [showOnboarding, setShowOnboarding] = useState(initialOnboardingNeeded)
   const [isInfoOpen, setIsInfoOpen] = useState(false)
@@ -156,6 +145,7 @@ function App() {
   const cardRevealTimeRef = useRef<number>(nowMs())
   const currentDeckIdRef = useRef<string>(generateDeckId())
   const nextDeckIdRef = useRef<string | null>(null)
+  const hasLoadedInitialDeckRef = useRef(false)
 
   const overlayActive = showOnboarding || isLeaderboardOpen || isInfoOpen || isAnalyticsOpen
 
@@ -168,9 +158,11 @@ function App() {
     if (nextDeckRef.current) return
     isPrefetchingRef.current = true
     try {
-      const next = await fetchOpenFakeDeck({ count: DECK_SIZE })
+      // Prefetch larger deck to maintain buffer
+      const next = await fetchOpenFakeDeck({ count: DECK_SIZE + 20 })
       nextDeckRef.current = next
       nextDeckIdRef.current = generateDeckId()
+      console.log(`Prefetched ${next.length} images for buffer`)
     } catch (error) {
       console.warn('Failed to prefetch OpenFake deck', error)
     } finally {
@@ -197,6 +189,7 @@ function App() {
           window.setTimeout(() => setCardMotion('idle'), 200)
         }
         setIsLoadingDeck(false)
+        hasLoadedInitialDeckRef.current = true
         void prefetchDeck()
         return
       }
@@ -214,6 +207,7 @@ function App() {
         if (typeof window !== 'undefined') {
           window.setTimeout(() => setCardMotion('idle'), 200)
         }
+        hasLoadedInitialDeckRef.current = true
       } catch (error) {
         console.error('Failed to fetch OpenFake deck', error)
         setDeckError('Could not reach the OpenFake dataset. Check your connection and try again.')
@@ -225,9 +219,19 @@ function App() {
     [prefetchDeck]
   )
 
+  const loadGlobalLeaderboard = useCallback(async () => {
+    try {
+      const response = await getLeaderboard(50, 'all')
+      setLeaderboard(response.leaderboard)
+    } catch (error) {
+      console.error('Failed to load leaderboard:', error)
+    }
+  }, [])
+
   useEffect(() => {
     analytics.init({ deckSize: DECK_SIZE })
-  }, [])
+    loadGlobalLeaderboard()
+  }, [loadGlobalLeaderboard])
 
   useEffect(() => {
     if (!playerName) return
@@ -237,6 +241,39 @@ function App() {
   useEffect(() => {
     loadDeck()
   }, [loadDeck])
+
+  // Smart preloader to maintain 8+ image buffer
+  useEffect(() => {
+    if (!hasLoadedInitialDeckRef.current) return
+
+    const maintainImageBuffer = async () => {
+      const targetBuffer = 8 // Maintain at least 8 images for smooth gameplay
+
+      try {
+        // Continuously preload to maintain small buffer
+        while (true) {
+          if (isPrefetchingRef.current) {
+            await new Promise(resolve => setTimeout(resolve, 500))
+            continue
+          }
+
+          const currentBuffer = (deck.length - currentIndex) + (nextDeckRef.current?.length || 0)
+          if (currentBuffer < targetBuffer) {
+            console.log(`Buffer low (${currentBuffer}), preloading more images...`)
+            await fetchOpenFakeDeck({ count: Math.min(targetBuffer, 12), limitPerFetch: 8 })
+          }
+
+          // Wait before checking again - longer delay to avoid excessive API calls
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
+      } catch (error) {
+        console.warn('Buffer maintenance failed:', error)
+      }
+    }
+
+    // Start maintaining buffer immediately after initial load
+    maintainImageBuffer()
+  }, [deck.length, currentIndex])
 
   useEffect(() => {
     if (deck.length === 0) return
@@ -302,33 +339,6 @@ function App() {
     window.localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(entries))
   }, [])
 
-  const updateLeaderboard = useCallback(
-    (name: string, candidateScore: number, candidateRounds: number) => {
-      if (!name) return
-      const safeScore = Math.max(0, candidateScore)
-      setLeaderboard((prev) => {
-        const now = Date.now()
-        const index = prev.findIndex((entry) => entry.name.toLowerCase() === name.toLowerCase())
-
-        if (index >= 0) {
-          if (safeScore <= prev[index].score) {
-            return prev
-          }
-          const updated = [...prev]
-          updated[index] = { ...updated[index], score: safeScore, rounds: candidateRounds, updatedAt: now }
-          const sorted = sortAndTrimLeaderboard(updated)
-          persistLeaderboard(sorted)
-          return sorted
-        }
-
-        const withNew = sortAndTrimLeaderboard([...prev, { name, score: safeScore, rounds: candidateRounds, updatedAt: now }])
-        persistLeaderboard(withNew)
-        return withNew
-      })
-    },
-    [persistLeaderboard]
-  )
-
   const advanceCard = useCallback(() => {
     if (deck.length === 0) return
     setCardMotion('enter')
@@ -355,7 +365,7 @@ function App() {
   }, [])
 
   const handleGuess = useCallback(
-    (guess: GuessType) => {
+    async (guess: GuessType) => {
       if (isLocked || !currentCard) return
       setIsLocked(true)
       setCardMotion(guess === 'real' ? 'right' : 'left')
@@ -383,10 +393,19 @@ function App() {
         // Swallow flush errors; analytics dashboards surface failures separately.
       })
 
-      const nextScore = Math.max(0, score + (correct ? 1 : -1))
+      const scoreChange = correct ? 1 : -1
+      const nextScore = Math.max(0, score + scoreChange)
       const nextTotal = stats.total + 1
       const nextCorrect = stats.correct + (correct ? 1 : 0)
       const nextStreak = correct ? streak + 1 : 0
+
+      // Save guess to server and update local state
+      try {
+        await saveGuess(playerName, scoreChange, correct, DECK_SIZE)
+      } catch (error) {
+        console.warn('Failed to save guess to server:', error)
+        // Continue with local state update even if server save fails
+      }
 
       setScore(nextScore)
       setStats({ total: nextTotal, correct: nextCorrect })
@@ -400,9 +419,7 @@ function App() {
         }
       }
 
-      if (playerName) {
-        updateLeaderboard(playerName, nextScore, nextTotal)
-      }
+
 
       // Enhanced feedback messages based on streak
       const getFeedbackMessage = (isCorrect: boolean, currentStreak: number, perfectDecks: number) => {
@@ -448,6 +465,11 @@ function App() {
         advanceCard()
         setIsLocked(false)
       }, 820)
+
+      // Refresh leaderboard immediately after each guess to show updated rankings
+      loadGlobalLeaderboard().catch(error => {
+        console.warn('Failed to refresh leaderboard:', error)
+      })
     },
     [
       advanceCard,
@@ -460,7 +482,6 @@ function App() {
       stats.correct,
       stats.total,
       streak,
-      updateLeaderboard,
     ]
   )
 
@@ -515,6 +536,53 @@ function App() {
     return () => window.removeEventListener('keydown', handleKey)
   }, [currentCard, handleGuess, isLoadingDeck, isLocked, overlayActive])
 
+
+  const handleLogout = useCallback(() => {
+    // Clear all stored data
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(PLAYER_STORAGE_KEY)
+      window.localStorage.removeItem(LEADERBOARD_STORAGE_KEY)
+      window.localStorage.removeItem(ONBOARDING_STORAGE_KEY)
+    }
+
+    // Reset all state
+    setPlayerName('')
+    setLeaderboard([])
+    setScore(0)
+    setStats({ total: 0, correct: 0 })
+    setStreak(0)
+    setPerfectDeckStreak(0)
+    setCurrentIndex(0)
+    setCardMotion('enter')
+    setFeedback(null)
+    setIsLocked(false)
+    setDragOffset(0)
+    setDeckError(null)
+    setDeck([])
+    setIsLoadingDeck(true)
+
+    // Close all modals
+    setIsInfoOpen(false)
+    setIsLeaderboardOpen(false)
+    setIsAnalyticsOpen(false)
+
+    // Clear any existing timeouts
+    if (resultTimeoutRef.current) {
+      window.clearTimeout(resultTimeoutRef.current)
+      resultTimeoutRef.current = null
+    }
+    if (feedbackTimeoutRef.current) {
+      window.clearTimeout(feedbackTimeoutRef.current)
+      feedbackTimeoutRef.current = null
+    }
+
+    // Reset analytics session
+    analytics.updateSession({ username: undefined })
+
+    // Show onboarding again
+    setShowOnboarding(true)
+  }, [])
+
   const handleInfoBackdropClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (event.target === event.currentTarget) {
@@ -546,11 +614,11 @@ function App() {
 
   const playerRank = useMemo(() => {
     if (!playerName) return -1
-    return leaderboard.findIndex((entry) => entry.name.toLowerCase() === playerName.toLowerCase())
+    return leaderboard.findIndex((entry) => entry.username.toLowerCase() === playerName.toLowerCase())
   }, [leaderboard, playerName])
 
   const percentileData = useMemo(() => {
-    const baseScores = leaderboard.map((entry) => entry.score)
+    const baseScores = leaderboard.map((entry) => entry.high_score)
     const scores = [...baseScores, score]
     if (scores.length === 0) {
       return { scores: [0, 1], percentile: 0.5 }
@@ -642,6 +710,15 @@ function App() {
               disabled={overlayActive && !isAnalyticsOpen}
             >
               Analytics 📊
+            </button>
+            <button
+              type="button"
+              className="icon-button logout"
+              onClick={handleLogout}
+              disabled={overlayActive}
+              title="Logout and change player"
+            >
+              Logout 🚪
             </button>
           </div>
         </header>
@@ -805,11 +882,22 @@ function App() {
         >
           <div className="info-panel">
             <div className="panel-heading">
-              <h2>Session details</h2>
+              <h2>About Hot or Slop</h2>
               <button type="button" className="icon-button ghost" onClick={() => setIsInfoOpen(false)}>
                 Close
               </button>
             </div>
+            <section className="info-section">
+              <h3>What is this?</h3>
+              <p className="info-text">
+                <strong>Hot or Slop</strong> is a game that challenges you to distinguish between AI-generated images and real photographs.
+                Test your ability to spot synthetic content in a fun, competitive environment!
+              </p>
+              <p className="info-text">
+                Swipe, tap, or use arrow keys to make your guess. Correct answers earn points while wrong answers deduct them.
+                Build streaks, climb the leaderboard, and level up your detection skills!
+              </p>
+            </section>
             <section className="info-section">
               <h3>Current image</h3>
               {currentCard ? (
@@ -890,18 +978,23 @@ function App() {
                       <th>#</th>
                       <th>Player</th>
                       <th>Rounds</th>
-                      <th>Score</th>
+                      <th>Current Score</th>
+                      <th>High Score</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {leaderboard.slice(0, 10).map((entry, index) => {
-                      const isPlayer = entry.name.toLowerCase() === playerName.toLowerCase()
+                    {leaderboard.slice(0, 10).map((entry) => {
+                      const isPlayer = entry.username.toLowerCase() === playerName.toLowerCase()
                       return (
-                        <tr key={entry.name} className={isPlayer ? 'highlight' : ''}>
-                          <td>{index + 1}</td>
-                          <td>{entry.name}</td>
-                          <td>{entry.rounds}</td>
-                          <td>{formatScore(entry.score)}</td>
+                        <tr key={entry.username} className={`${isPlayer ? 'highlight' : ''} ${entry.is_active ? 'active' : ''}`}>
+                          <td>{entry.rank}</td>
+                          <td>
+                            {entry.username}
+                            {entry.is_active && <span className="active-indicator" title="Currently playing">🟢</span>}
+                          </td>
+                          <td>{entry.total_rounds}</td>
+                          <td>{formatScore(entry.current_score)}</td>
+                          <td>{formatScore(entry.high_score)}</td>
                         </tr>
                       )
                     })}
@@ -959,16 +1052,16 @@ const Onboarding = ({ initialName, leaderboard, datasetSources, onComplete }: On
   const slides = useMemo(
     () => [
       {
-        title: 'Spot the synthetic 👁️‍🗨️',
-        body: 'One image at a time. Decide if what you see is a true capture or an AI fabrication. 🤖',
+        title: '🎯 Spot the Difference',
+        body: 'Can you tell AI-generated images from real photographs? Each image is either created by artificial intelligence or captured by a real camera.',
       },
       {
-        title: 'Score with certainty 🎯',
-        body: 'Every correct call is +1, every miss is -1. Streaks push you up the leaderboard. 🏆',
+        title: '🏆 How to Score',
+        body: 'Correct answer: +1 point\nWrong answer: -1 point\nBuild streaks for bonus motivation\nClimb the global leaderboard!',
       },
       {
-        title: 'Tag your run 🏷️',
-        body: 'Images stream from the CC BY-SA 4.0 OpenFake dataset. Drop a handle so your score sticks. 💾',
+        title: '🚀 Ready to Play?',
+        body: 'Choose your player name to get started. Your scores will be saved and you can compete with others on the leaderboard.',
       },
     ],
     []
@@ -999,11 +1092,20 @@ const Onboarding = ({ initialName, leaderboard, datasetSources, onComplete }: On
   const topThree = leaderboard.slice(0, 3)
 
   return (
-    <div className="onboarding">
+    <div className="onboarding-single">
       <div className="onboarding-panel">
-        <span className="brand-mark">Hot or Slop 🔥🤖</span>
-        <h2>{slides[step].title}</h2>
-        <p>{slides[step].body}</p>
+        <header className="onboarding-header">
+          <span className="brand-mark">Hot or Slop 🔥🤖</span>
+        </header>
+
+        <main className="onboarding-content">
+          <div className="slide-content">
+            <h2>{slides[step].title}</h2>
+            <p>{slides[step].body}</p>
+          </div>
+        </main>
+
+        <footer className="onboarding-footer">
         {step === slides.length - 1 && (
           <div className="name-capture">
             <label htmlFor="playerName">Name</label>
@@ -1012,7 +1114,7 @@ const Onboarding = ({ initialName, leaderboard, datasetSources, onComplete }: On
               ref={inputRef}
               value={name}
               onChange={(event) => setName(event.target.value.slice(0, 18))}
-              placeholder="e.g. NeonNinja"
+              placeholder="Enter your display name"
               autoComplete="off"
               maxLength={18}
               onKeyDown={(event) => {
@@ -1025,52 +1127,42 @@ const Onboarding = ({ initialName, leaderboard, datasetSources, onComplete }: On
                 }
               }}
             />
-            <small>18 characters max. This is how you appear on the board.</small>
+            <small>Choose a name (2-18 characters) - this is how you'll appear on the leaderboard!</small>
           </div>
         )}
-        <div className="onboarding-controls">
-          <button type="button" className="ghost" onClick={prevStep} disabled={step === 0}>
-            Back
-          </button>
-          <button
-            type="button"
-            onClick={nextStep}
-            disabled={step === slides.length - 1 && name.trim().length < 2}
-          >
-            {step === slides.length - 1 ? 'Let me in' : 'Next'}
-          </button>
-        </div>
-        <div className="step-dots" role="tablist" aria-label="Onboarding progress">
-          {slides.map((_, index) => (
-            <span key={index} className={index === step ? 'active' : ''} aria-hidden />
-          ))}
-        </div>
-        <p className="info-meta">
-          Imagery credit:{' '}
-          {credits.map((source, index) => (
-            <span key={source.url}>
-              <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a> ({source.license})
-              {index < credits.length - 1 ? ' · ' : '.'}
-            </span>
-          ))}
-        </p>
-      </div>
-      <div className="onboarding-feed">
-        <h3>Current heat check</h3>
-        {topThree.length === 0 ? (
-          <p>No one on the board yet. Your run starts now. 🚀</p>
-        ) : (
-          <ul>
-            {topThree.map((entry, index) => (
-              <li key={entry.name}>
-                <span className="rank">#{index + 1}</span>
-                <span className="name">{entry.name}</span>
-                <span className="score">{formatScore(entry.score)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="onboarding-tip">Swipe left for AI, right for real. Buttons and keys work too.</p>
+          <div className="onboarding-controls">
+            <button type="button" className="ghost" onClick={prevStep} disabled={step === 0}>
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={nextStep}
+              disabled={step === slides.length - 1 && name.trim().length < 2}
+            >
+              {step === slides.length - 1 ? 'Let me in' : 'Next'}
+            </button>
+          </div>
+
+          <div className="onboarding-progress">
+            <div className="step-dots" role="tablist" aria-label="Onboarding progress">
+              {slides.map((_, index) => (
+                <span key={index} className={index === step ? 'active' : ''} aria-hidden />
+              ))}
+            </div>
+          </div>
+
+          <div className="onboarding-credits">
+            <p className="info-meta">
+              Imagery credit:{' '}
+              {credits.map((source, index) => (
+                <span key={source.url}>
+                  <a href={source.url} target="_blank" rel="noreferrer">{source.label}</a> ({source.license})
+                  {index < credits.length - 1 ? ' · ' : '.'}
+                </span>
+              ))}
+            </p>
+          </div>
+        </footer>
       </div>
     </div>
   )
