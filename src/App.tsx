@@ -21,13 +21,7 @@ type LeaderboardEntry = {
   is_active: boolean;
 }
 
-// This type is used for the local state before it is sorted and ranked
-type LocalLeaderboardEntry = {
-  name: string
-  score: number
-  rounds: number
-  updatedAt: number
-}
+
 
 type GuessFeedback = {
   correct: boolean
@@ -334,10 +328,7 @@ function App() {
     window.localStorage.setItem(ONBOARDING_STORAGE_KEY, 'true')
   }, [])
 
-  const persistLeaderboard = useCallback((entries: LeaderboardEntry[]) => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(entries))
-  }, [])
+  
 
   const advanceCard = useCallback(() => {
     if (deck.length === 0) return
@@ -1025,7 +1016,6 @@ function App() {
         <div className="splash-layer" role="dialog" aria-modal="true">
           <Onboarding
             initialName={playerName}
-            leaderboard={leaderboard}
             onComplete={handleOnboardingComplete}
             datasetSources={DATASET_SOURCES}
           />
@@ -1038,12 +1028,11 @@ function App() {
 
 type OnboardingProps = {
   initialName: string
-  leaderboard: LeaderboardEntry[]
   datasetSources: DatasetSource[]
   onComplete: (name: string) => void
 }
 
-const Onboarding = ({ initialName, leaderboard, datasetSources, onComplete }: OnboardingProps) => {
+const Onboarding = ({ initialName, datasetSources, onComplete }: OnboardingProps) => {
   const [step, setStep] = useState(0)
   const [name, setName] = useState(initialName)
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -1089,7 +1078,7 @@ const Onboarding = ({ initialName, leaderboard, datasetSources, onComplete }: On
     setStep(step - 1)
   }
 
-  const topThree = leaderboard.slice(0, 3)
+  
 
   return (
     <div className="onboarding-single">
