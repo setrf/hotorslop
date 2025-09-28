@@ -21,7 +21,6 @@ const sessionSchema = z.object({
 });
 
 const guessEventSchema = z.object({
-  type: z.literal('guess'),
   deckId: z.string().trim().max(120).optional(),
   deckPosition: z.number().int().min(0).max(1024).optional(),
   cardId: z.string().min(1).max(180),
