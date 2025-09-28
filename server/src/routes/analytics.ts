@@ -376,8 +376,8 @@ router.get('/models', (_req, res) => {
       ORDER BY guesses DESC
       LIMIT 25
     `).all() as Array<{
-      modelkey: string | null;
-      modelraw: string | null;
+      modelKey: string | null;
+      modelRaw: string | null;
       datasetSource: string;
       guesses: number;
       accuracy: number | null;
@@ -388,7 +388,7 @@ router.get('/models', (_req, res) => {
     res.json({
       success: true,
       models: rows.map((row) => ({
-        model: row.modelraw ?? 'Unknown',
+        model: row.modelRaw ?? 'Unknown',
         datasetSource: row.datasetSource,
         guesses: row.guesses,
         accuracy: row.accuracy ? Math.round(row.accuracy * 100) : 0,
