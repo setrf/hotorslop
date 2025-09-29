@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
+import { useSwipeable } from 'react-swipeable'
 import './App.css'
 import { fetchOpenFakeDeck, OPEN_FAKE_CONSTANTS, type HotOrSlopImage } from './services/openfake'
 
@@ -127,11 +128,10 @@ function App() {
   const [stats, setStats] = useState({ total: 0, correct: 0 })
   const [streak, setStreak] = useState(0)
   const [perfectDeckStreak, setPerfectDeckStreak] = useState(0)
-  const [cardMotion, setCardMotion] = useState<'idle' | 'left' | 'right' | 'enter'>('enter')
   const [feedback, setFeedback] = useState<GuessFeedback | null>(null)
   const [isLocked, setIsLocked] = useState(false)
-  const [dragOffset, setDragOffset] = useState(0)
-  const dragStartXRef = useRef<number | null>(null)
+  const [offset, setOffset] = useState(0)
+  const [rotation, setRotation] = useState(0)
   const resultTimeoutRef = useRef<number | null>(null)
   const feedbackTimeoutRef = useRef<number | null>(null)
   const nextDeckRef = useRef<HotOrSlopImage[] | null>(null)
@@ -140,6 +140,24 @@ function App() {
   const currentDeckIdRef = useRef<string>(generateDeckId())
   const nextDeckIdRef = useRef<string | null>(null)
   const hasLoadedInitialDeckRef = useRef(false)
+
+  const handlers = useSwipeable({
+    onSwiping: (eventData) => {
+      setOffset(eventData.deltaX)
+      setRotation(eventData.deltaX / 20) // Adjust divisor for desired rotation speed
+    },
+    onSwiped: (eventData) => {
+      if (eventData.dir === 'Left') {
+        handleGuess('ai')
+      } else if (eventData.dir === 'Right') {
+        handleGuess('real')
+      }
+      setOffset(0)
+      setRotation(0)
+    },
+    preventScrollOnSwipe: true,
+    trackMouse: true,
+  })
 
   const overlayActive = showOnboarding || isLeaderboardOpen || isInfoOpen || isAnalyticsOpen
 
@@ -177,10 +195,8 @@ function App() {
         analytics.setDeck(deckId, items.length)
         setDeck(items)
         setCurrentIndex(0)
-        setCardMotion('enter')
-        setDragOffset(0)
         if (typeof window !== 'undefined') {
-          window.setTimeout(() => setCardMotion('idle'), 200)
+          window.setTimeout(() => {}, 200)
         }
         setIsLoadingDeck(false)
         hasLoadedInitialDeckRef.current = true
@@ -196,10 +212,8 @@ function App() {
         analytics.setDeck(deckId, items.length)
         setDeck(items)
         setCurrentIndex(0)
-        setCardMotion('enter')
-        setDragOffset(0)
         if (typeof window !== 'undefined') {
-          window.setTimeout(() => setCardMotion('idle'), 200)
+          window.setTimeout(() => {}, 200)
         }
         hasLoadedInitialDeckRef.current = true
       } catch (error) {
@@ -328,11 +342,8 @@ function App() {
     window.localStorage.setItem(ONBOARDING_STORAGE_KEY, 'true')
   }, [])
 
-  
-
   const advanceCard = useCallback(() => {
     if (deck.length === 0) return
-    setCardMotion('enter')
     setCurrentIndex((prev) => {
       const next = prev + 1
       if (next >= deck.length) {
@@ -342,7 +353,6 @@ function App() {
       return next
     })
     window.setTimeout(() => {
-      setCardMotion('idle')
     }, 250)
   }, [deck.length, loadDeck])
 
@@ -359,8 +369,6 @@ function App() {
     async (guess: GuessType) => {
       if (isLocked || !currentCard) return
       setIsLocked(true)
-      setCardMotion(guess === 'real' ? 'right' : 'left')
-      setDragOffset(0)
 
       const correct = currentCard.answer === guess
       const latencyMs = Math.max(0, Math.round(nowMs() - (cardRevealTimeRef.current ?? nowMs())))
@@ -476,39 +484,6 @@ function App() {
     ]
   )
 
-  const handlePointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (isLocked || !currentCard || isLoadingDeck || overlayActive) return
-      dragStartXRef.current = event.clientX
-      setDragOffset(0)
-      ;(event.target as HTMLElement).setPointerCapture?.(event.pointerId)
-    },
-    [currentCard, isLoadingDeck, isLocked, overlayActive]
-  )
-
-  const handlePointerMove = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (dragStartXRef.current === null || isLocked || isLoadingDeck || overlayActive) return
-      const delta = event.clientX - dragStartXRef.current
-      setDragOffset(delta)
-    },
-    [isLoadingDeck, isLocked, overlayActive]
-  )
-
-  const finishDrag = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (dragStartXRef.current === null) return
-      const delta = event.clientX - dragStartXRef.current
-      dragStartXRef.current = null
-      if (Math.abs(delta) > 120) {
-        handleGuess(delta > 0 ? 'real' : 'ai')
-      } else {
-        setDragOffset(0)
-      }
-    },
-    [handleGuess]
-  )
-
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       if (overlayActive) return
@@ -544,10 +519,10 @@ function App() {
     setStreak(0)
     setPerfectDeckStreak(0)
     setCurrentIndex(0)
-    setCardMotion('enter')
     setFeedback(null)
     setIsLocked(false)
-    setDragOffset(0)
+    setOffset(0)
+    setRotation(0)
     setDeckError(null)
     setDeck([])
     setIsLoadingDeck(true)
@@ -788,16 +763,11 @@ function App() {
                   <p className="swipe-hint">Swipe left for AI, right for real — or tap the buttons / use ← → keys.</p>
                 </div>
                 <div
-                  className={`image-card ${cardMotion !== 'idle' ? `motion-${cardMotion}` : ''}`}
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={finishDrag}
-                  onPointerCancel={finishDrag}
+                  className="image-card"
+                  {...handlers}
                   style={{
-                    transform:
-                      cardMotion === 'idle' && !isLoadingDeck
-                        ? `translateX(${dragOffset}px) rotate(${dragOffset * 0.02}deg)`
-                        : undefined,
+                    transform: `translateX(${offset}px) rotate(${rotation}deg)`,
+                    transition: offset === 0 ? 'transform 0.3s ease-out' : 'none',
                   }}
                   role="img"
                   aria-label={`${truncate(currentCard.prompt, 160)} — guess if it is real or AI generated`}
