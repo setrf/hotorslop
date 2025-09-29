@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useSwipeable } from 'react-swipeable'
+
 import './App.css'
 import { fetchOpenFakeDeck, OPEN_FAKE_CONSTANTS, type HotOrSlopImage } from './services/openfake'
 
@@ -20,19 +21,6 @@ type LeaderboardEntry = {
   avg_accuracy: number;
   last_played: string;
   is_active: boolean;
-}
-
-
-
-type GuessFeedback = {
-  correct: boolean
-  answer: GuessType
-  guess: GuessType
-  label: 'fake' | 'real'
-  prompt: string
-  model?: string | null
-  streakMessage?: string
-  motivationalMessage?: string
 }
 
 const PLAYER_STORAGE_KEY = 'hotorslop_player_name'
@@ -128,12 +116,10 @@ function App() {
   const [stats, setStats] = useState({ total: 0, correct: 0 })
   const [streak, setStreak] = useState(0)
   const [perfectDeckStreak, setPerfectDeckStreak] = useState(0)
-  const [feedback, setFeedback] = useState<GuessFeedback | null>(null)
   const [isLocked, setIsLocked] = useState(false)
   const [offset, setOffset] = useState(0)
   const [rotation, setRotation] = useState(0)
   const resultTimeoutRef = useRef<number | null>(null)
-  const feedbackTimeoutRef = useRef<number | null>(null)
   const nextDeckRef = useRef<HotOrSlopImage[] | null>(null)
   const isPrefetchingRef = useRef(false)
   const cardRevealTimeRef = useRef<number>(nowMs())
@@ -298,7 +284,6 @@ function App() {
   useEffect(() => {
     return () => {
       if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current)
-      if (feedbackTimeoutRef.current) window.clearTimeout(feedbackTimeoutRef.current)
       void analytics.flushNow()
     }
   }, [])
@@ -356,15 +341,6 @@ function App() {
     }, 250)
   }, [deck.length, loadDeck])
 
-  const scheduleFeedbackClear = useCallback(() => {
-    if (feedbackTimeoutRef.current) {
-      window.clearTimeout(feedbackTimeoutRef.current)
-    }
-    feedbackTimeoutRef.current = window.setTimeout(() => {
-      setFeedback(null)
-    }, 3200)
-  }, [])
-
   const handleGuess = useCallback(
     async (guess: GuessType) => {
       if (isLocked || !currentCard) return
@@ -418,8 +394,6 @@ function App() {
         }
       }
 
-
-
       // Enhanced feedback messages based on streak
       const getFeedbackMessage = (isCorrect: boolean, currentStreak: number, perfectDecks: number) => {
         if (isCorrect) {
@@ -444,23 +418,17 @@ function App() {
         }
       }
 
-      setFeedback({
-        correct,
-        answer: currentCard.answer,
-        guess,
-        label: currentCard.label,
-        prompt: currentCard.prompt,
-        model: currentCard.model ?? null,
-        streakMessage: getFeedbackMessage(correct, correct ? nextStreak : 0, perfectDeckStreak),
-        motivationalMessage: getMotivationalMessage(correct, currentCard.answer),
-      })
-      scheduleFeedbackClear()
+      const feedbackMessage = getFeedbackMessage(correct, correct ? nextStreak : 0, perfectDeckStreak)
+      const motivationalMessage = getMotivationalMessage(correct, currentCard.answer)
+
+      setFeedbackMessage({ message: `${feedbackMessage} ${motivationalMessage}`, type: correct ? 'success' : 'error' })
 
       if (resultTimeoutRef.current) {
         window.clearTimeout(resultTimeoutRef.current)
       }
 
       resultTimeoutRef.current = window.setTimeout(() => {
+        setFeedbackMessage(null)
         advanceCard()
         setIsLocked(false)
       }, 820)
@@ -476,7 +444,6 @@ function App() {
       isLocked,
       perfectDeckStreak,
       playerName,
-      scheduleFeedbackClear,
       score,
       stats.correct,
       stats.total,
@@ -519,7 +486,6 @@ function App() {
     setStreak(0)
     setPerfectDeckStreak(0)
     setCurrentIndex(0)
-    setFeedback(null)
     setIsLocked(false)
     setOffset(0)
     setRotation(0)
@@ -536,10 +502,6 @@ function App() {
     if (resultTimeoutRef.current) {
       window.clearTimeout(resultTimeoutRef.current)
       resultTimeoutRef.current = null
-    }
-    if (feedbackTimeoutRef.current) {
-      window.clearTimeout(feedbackTimeoutRef.current)
-      feedbackTimeoutRef.current = null
     }
 
     // Reset analytics session
@@ -638,6 +600,10 @@ function App() {
     .filter(Boolean)
     .join(' ')
 
+  const [feedbackMessage, setFeedbackMessage] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  // ... (rest of the component)
+
   return (
     <div className={shellClassName}>
       <div className="app-content">
@@ -646,6 +612,127 @@ function App() {
             <span className="brand-mark">Hot or Slop 🔥🤖</span>
             <h1 className="brand-title">Call the fake.</h1>
           </div>
+        </header>
+
+        {feedbackMessage && (
+          <div className={`feedback-message ${feedbackMessage.type}`}>
+            {feedbackMessage.message}
+          </div>
+        )}
+
+        <main
+          className="minimal-main"
+          aria-hidden={showOnboarding}
+          style={showOnboarding ? { pointerEvents: 'none' } : undefined}
+        >
+          {currentCard ? (
+            <>
+              <div className="card-controls">
+                <div className="controls">
+                  <button
+                    type="button"
+                    className="guess-button ai"
+                    onClick={() => handleGuess('ai')}
+                    disabled={controlsDisabled}
+                  >
+                    🤖 AI Generated
+                  </button>
+                  <button
+                    type="button"
+                    className="guess-button real"
+                    onClick={() => handleGuess('real')}
+                    disabled={controlsDisabled}
+                  >
+                    📸 Real Photo
+                  </button>
+                </div>
+                <p className="swipe-hint">Swipe left for AI, right for real — or tap the buttons / use ← → keys.</p>
+              </div>
+              <div
+                className="image-card"
+                {...handlers}
+                style={{
+                  transform: `translateX(${offset}px) rotate(${rotation}deg)`,
+                  transition: offset === 0 ? 'transform 0.3s ease-out' : 'none',
+                }}
+                role="img"
+                aria-label={`${truncate(currentCard.prompt, 160)} — guess if it is real or AI generated`}
+              >
+                <img src={currentCard.src} alt="" draggable={false} />
+              </div>
+            </>
+          ) : (
+            <div className="card-placeholder">
+              {isLoadingDeck ? (
+                <>
+                  <span className="loading-pip" />
+                  <p>Streaming fresh heat from OpenFake… 🔥</p>
+                </>
+              ) : deckError ? (
+                <>
+                  <p>{deckError} 😅</p>
+                  <button type="button" onClick={() => loadDeck()}>
+                    Retry fetch 🔄
+                  </button>
+                </>
+              ) : (
+                <p>Cards will reload once new images arrive. 📥</p>
+              )}
+            </div>
+          )}
+          {showLoadingOverlay && (
+            <div className="card-loading" aria-hidden>
+              <span className="loading-ring" />
+              <span>Loading new images… 📷</span>
+            </div>
+          )}
+
+          <div className={`card-wrapper ${showLoadingOverlay ? 'busy' : ''}`}>
+            <section className="session-stats">
+              <div className="stat-grid">
+                <div className="stat-card">
+                  <span className="stat-label">Score</span>
+                  <span className="stat-value">{formatScore(score)}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Rounds</span>
+                  <span className="stat-value">{stats.total}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Accuracy</span>
+                  <span className="stat-value">{accuracyDisplay}</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-label">Streak</span>
+                  <span className="stat-value">{streak}</span>
+                </div>
+              </div>
+            </section>
+
+            <section className="session-level">
+              <div className="level-summary">
+                <div>
+                  <span className="stat-label">Current</span>
+                  <span className="stat-value">Level {levelInfo.index + 1} · {levelInfo.name}</span>
+                </div>
+                <div>
+                  <span className="stat-label">Next</span>
+                  <span className="stat-value">
+                    {levelInfo.nextTarget !== null ? `Level ${levelInfo.index + 2} · ${levelInfo.nextName} (${formatScore(levelInfo.nextTarget)})` : 'Maxed'}
+                  </span>
+                </div>
+              </div>
+              <div className="level-progress">
+                <div className="level-progress-fill" style={{ width: `${Math.min(levelInfo.progress * 100, 100)}%` }} />
+              </div>
+              <span className="level-progress-label">
+                {levelInfo.nextTarget !== null
+                  ? `${Math.max(0, levelInfo.nextTarget - score)} points to ${levelInfo.nextName}`
+                  : 'You’ve reached the top tier.'}
+              </span>
+            </section>
+          </div>
+
           <div className="header-actions">
             <button
               type="button"
@@ -687,148 +774,6 @@ function App() {
               Logout 🚪
             </button>
           </div>
-        </header>
-
-        <main
-          className="minimal-main"
-          aria-hidden={showOnboarding}
-          style={showOnboarding ? { pointerEvents: 'none' } : undefined}
-        >
-          <div className={`card-wrapper ${showLoadingOverlay ? 'busy' : ''}`}>
-            <section className="session-stats">
-              <div className="stat-grid">
-                <div className="stat-card">
-                  <span className="stat-label">Score</span>
-                  <span className="stat-value">{formatScore(score)}</span>
-                </div>
-                <div className="stat-card">
-                  <span className="stat-label">Rounds</span>
-                  <span className="stat-value">{stats.total}</span>
-                </div>
-                <div className="stat-card">
-                  <span className="stat-label">Accuracy</span>
-                  <span className="stat-value">{accuracyDisplay}</span>
-                </div>
-                <div className="stat-card">
-                  <span className="stat-label">Streak</span>
-                  <span className="stat-value">{streak}</span>
-                </div>
-              </div>
-            </section>
-
-            <section className="session-level">
-              <div className="level-summary">
-                <div>
-                  <span className="stat-label">Current</span>
-                  <span className="stat-value">Level {levelInfo.index + 1} · {levelInfo.name}</span>
-                </div>
-                <div>
-                  <span className="stat-label">Next</span>
-                  <span className="stat-value">
-                    {levelInfo.nextTarget !== null ? `Level ${levelInfo.index + 2} · ${levelInfo.nextName} (${formatScore(levelInfo.nextTarget)})` : 'Maxed'}
-                  </span>
-                </div>
-              </div>
-              <div className="level-progress">
-                <div className="level-progress-fill" style={{ width: `${Math.round(levelInfo.progress * 100)}%` }} />
-              </div>
-              <span className="level-progress-label">
-                {levelInfo.nextTarget !== null
-                  ? `${Math.max(0, levelInfo.nextTarget - score)} points to ${levelInfo.nextName}`
-                  : 'You’ve reached the top tier.'}
-              </span>
-            </section>
-
-            {currentCard ? (
-              <>
-                <div className="card-controls">
-                  <div className="controls">
-                    <button
-                      type="button"
-                      className="guess-button ai"
-                      onClick={() => handleGuess('ai')}
-                      disabled={controlsDisabled}
-                    >
-                      🤖 AI Generated
-                    </button>
-                    <button
-                      type="button"
-                      className="guess-button real"
-                      onClick={() => handleGuess('real')}
-                      disabled={controlsDisabled}
-                    >
-                      📸 Real Photo
-                    </button>
-                  </div>
-                  <p className="swipe-hint">Swipe left for AI, right for real — or tap the buttons / use ← → keys.</p>
-                </div>
-                <div
-                  className="image-card"
-                  {...handlers}
-                  style={{
-                    transform: `translateX(${offset}px) rotate(${rotation}deg)`,
-                    transition: offset === 0 ? 'transform 0.3s ease-out' : 'none',
-                  }}
-                  role="img"
-                  aria-label={`${truncate(currentCard.prompt, 160)} — guess if it is real or AI generated`}
-                >
-                  <img src={currentCard.src} alt="" draggable={false} />
-                </div>
-              </>
-            ) : (
-              <div className="card-placeholder">
-                {isLoadingDeck ? (
-                  <>
-                    <span className="loading-pip" />
-                    <p>Streaming fresh heat from OpenFake… 🔥</p>
-                  </>
-                ) : deckError ? (
-                  <>
-                    <p>{deckError} 😅</p>
-                    <button type="button" onClick={() => loadDeck()}>
-                      Retry fetch 🔄
-                    </button>
-                  </>
-                ) : (
-                  <p>Cards will reload once new images arrive. 📥</p>
-                )}
-              </div>
-            )}
-            {showLoadingOverlay && (
-              <div className="card-loading" aria-hidden>
-                <span className="loading-ring" />
-                <span>Loading new images… 📷</span>
-              </div>
-            )}
-          </div>
-
-          {feedback && (
-            <div className={`feedback-chip ${feedback.correct ? 'hot' : 'slop'} ${streak >= 5 ? 'streak-celebration' : ''}`} role="status">
-              <div className="feedback-primary">
-                <strong>{feedback.streakMessage || (feedback.correct ? 'Hot! 🔥' : 'Slop! 🤢')}</strong>
-                <span>{feedback.motivationalMessage}</span>
-              </div>
-              <p className="feedback-meta">
-                {feedback.answer === 'ai' ? `Source model: ${feedback.model ?? 'Unspecified — see OpenFake metadata.'}` : null}
-              </p>
-              {streak >= 3 && (
-                <div className="streak-indicator">
-                  <span className="streak-count">🔥 {streak} in a row!</span>
-                  <div className="streak-progress">
-                    <div
-                      className="streak-progress-fill"
-                      style={{ width: `${Math.min((streak / 10) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-              {perfectDeckStreak > 0 && (
-                <div className="perfect-deck-indicator">
-                  <span className="perfect-count">👑 Perfect Deck Streak: {perfectDeckStreak}</span>
-                </div>
-              )}
-            </div>
-          )}
 
         </main>
       </div>
@@ -865,11 +810,7 @@ function App() {
                 <>
                   <p className="info-text" title={currentCard.prompt}>{currentCard.prompt}</p>
                   <p className="info-meta">
-                    {feedback
-                      ? feedback.answer === 'ai'
-                        ? `Model: ${feedback.model ?? 'Not provided'} · Label: Synthetic`
-                        : 'Label: Real capture'
-                      : 'Guess first to reveal metadata.'}
+                    Guess first to reveal metadata.
                   </p>
                 </>
               ) : (
