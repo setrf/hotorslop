@@ -2,6 +2,8 @@
 
 **"Call the fake"** - A real-time, competitive game that challenges players to distinguish between AI-generated images and real photographs. Features live global leaderboards, real-time score updates, and advanced analytics.
 
+Hot or Slop doubles as an open-science, crowd-powered Turing test for image AI: every guess, streak, latency, and model attribution feeds a transparent dataset that helps researchers understand where humans still outperform modern generators-and where the machines are already fooling us.
+
 <p align="center">
   <img src="docs/screenshot-main.png" alt="Hot or Slop main screen" width="520" />
 </p>
@@ -206,8 +208,8 @@ server/
 
 ## Dataset & Licensing
 
-- **Synthetic imagery**: [ComplexDataLab/OpenFake](https://huggingface.co/datasets/ComplexDataLab/OpenFake) — CC BY-SA 4.0
-- **Real photography**: [lmms-lab/COCO-Caption2017](https://huggingface.co/datasets/lmms-lab/COCO-Caption2017) — CC BY 4.0
+- **Synthetic imagery**: [ComplexDataLab/OpenFake](https://huggingface.co/datasets/ComplexDataLab/OpenFake) - CC BY-SA 4.0
+- **Real photography**: [lmms-lab/COCO-Caption2017](https://huggingface.co/datasets/lmms-lab/COCO-Caption2017) - CC BY 4.0
 
 The Info modal reiterates the licenses and links to both dataset cards. Imagery is used strictly for demonstration/testing and not redistributed.
 
@@ -237,7 +239,7 @@ All dataset requests originate from the client using the Hugging Face datasets s
 
 ## Contributing
 
-Issues and pull requests are welcome—especially around balancing, UX tweaks, new dataset filters, or accessibility fixes. If you add generators, update `ALLOWED_MODEL_PREFIXES` in `services/openfake.ts` and be sure to respect the dataset licensing.
+Issues and pull requests are welcome-especially around balancing, UX tweaks, new dataset filters, or accessibility fixes. If you add generators, update `ALLOWED_MODEL_PREFIXES` in `services/openfake.ts` and be sure to respect the dataset licensing.
 
 ---
 
