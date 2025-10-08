@@ -266,9 +266,29 @@ const getJson = async <T>(endpoint: string): Promise<T> => {
     throw new Error(`Failed to fetch ${endpoint}: ${response.status}`);
   }
 
-  const json = await response.json();
-  if (!json.success) {
-    throw new Error(json.error || `Request to ${endpoint} failed`);
+  const contentType = response.headers.get('content-type') ?? '';
+  const rawBody = await response.text();
+
+  if (!contentType.includes('application/json')) {
+    const snippet = rawBody.slice(0, 140).replace(/\s+/g, ' ').trim();
+    throw new Error(`Unexpected response from analytics API (${response.status}): ${snippet || 'non-JSON payload'}`);
+  }
+
+  let json: unknown;
+  try {
+    json = JSON.parse(rawBody);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Invalid JSON payload';
+    throw new Error(`Unable to parse analytics response: ${message}`);
+  }
+
+  if (typeof json !== 'object' || json === null || !('success' in json)) {
+    throw new Error(`Malformed analytics response from ${endpoint}`);
+  }
+
+  const typed = json as { success: boolean; error?: string };
+  if (!typed.success) {
+    throw new Error(typed.error || `Request to ${endpoint} failed`);
   }
 
   return json as T;
