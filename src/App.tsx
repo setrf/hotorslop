@@ -119,7 +119,9 @@ function App() {
   const [isLocked, setIsLocked] = useState(false)
   const [offset, setOffset] = useState(0)
   const [rotation, setRotation] = useState(0)
+  const [activeGuess, setActiveGuess] = useState<GuessType | null>(null)
   const resultTimeoutRef = useRef<number | null>(null)
+  const activeGuessTimeoutRef = useRef<number | null>(null)
   const nextDeckRef = useRef<HotOrSlopImage[] | null>(null)
   const isPrefetchingRef = useRef(false)
   const cardRevealTimeRef = useRef<number>(nowMs())
@@ -451,23 +453,52 @@ function App() {
     ]
   )
 
+  const triggerGuess = useCallback(
+    (type: GuessType) => {
+      if (activeGuessTimeoutRef.current && typeof window !== 'undefined') {
+        window.clearTimeout(activeGuessTimeoutRef.current)
+      }
+
+      setActiveGuess(type)
+
+      if (typeof window !== 'undefined') {
+        activeGuessTimeoutRef.current = window.setTimeout(() => {
+          setActiveGuess(null)
+          activeGuessTimeoutRef.current = null
+        }, 260)
+      }
+
+      handleGuess(type)
+    },
+    [handleGuess]
+  )
+
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       if (overlayActive) return
       if (isLocked || !currentCard || isLoadingDeck) return
       if (event.key === 'ArrowLeft') {
         event.preventDefault()
-        handleGuess('ai')
+        triggerGuess('ai')
       }
       if (event.key === 'ArrowRight') {
         event.preventDefault()
-        handleGuess('real')
+        triggerGuess('real')
       }
     }
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [currentCard, handleGuess, isLoadingDeck, isLocked, overlayActive])
+  }, [currentCard, isLoadingDeck, isLocked, overlayActive, triggerGuess])
+
+  useEffect(() => {
+    return () => {
+      if (activeGuessTimeoutRef.current && typeof window !== 'undefined') {
+        window.clearTimeout(activeGuessTimeoutRef.current)
+        activeGuessTimeoutRef.current = null
+      }
+    }
+  }, [])
 
 
   const handleLogout = useCallback(() => {
@@ -492,6 +523,7 @@ function App() {
     setDeckError(null)
     setDeck([])
     setIsLoadingDeck(true)
+    setActiveGuess(null)
 
     // Close all modals
     setIsInfoOpen(false)
@@ -502,6 +534,10 @@ function App() {
     if (resultTimeoutRef.current) {
       window.clearTimeout(resultTimeoutRef.current)
       resultTimeoutRef.current = null
+    }
+    if (activeGuessTimeoutRef.current) {
+      window.clearTimeout(activeGuessTimeoutRef.current)
+      activeGuessTimeoutRef.current = null
     }
 
     // Reset analytics session
@@ -602,6 +638,14 @@ function App() {
 
   const [feedbackMessage, setFeedbackMessage] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
+  const getGuessButtonClassName = useCallback(
+    (type: GuessType) =>
+      ['guess-button', type === 'ai' ? 'ai' : 'real', activeGuess === type ? 'active' : '']
+        .filter(Boolean)
+        .join(' '),
+    [activeGuess]
+  )
+
   // ... (rest of the component)
 
   return (
@@ -631,16 +675,16 @@ function App() {
                 <div className="controls">
                   <button
                     type="button"
-                    className="guess-button ai"
-                    onClick={() => handleGuess('ai')}
+                    className={getGuessButtonClassName('ai')}
+                    onClick={() => triggerGuess('ai')}
                     disabled={controlsDisabled}
                   >
                     🤖 AI Generated
                   </button>
                   <button
                     type="button"
-                    className="guess-button real"
-                    onClick={() => handleGuess('real')}
+                    className={getGuessButtonClassName('real')}
+                    onClick={() => triggerGuess('real')}
                     disabled={controlsDisabled}
                   >
                     📸 Real Photo
@@ -736,7 +780,7 @@ function App() {
           <div className="header-actions">
             <button
               type="button"
-              className="icon-button"
+              className="icon-button primary"
               onClick={() => setIsInfoOpen(true)}
               aria-expanded={isInfoOpen}
               aria-controls="info-panel"
@@ -746,7 +790,7 @@ function App() {
             </button>
             <button
               type="button"
-              className="icon-button"
+              className="icon-button outline"
               onClick={() => setIsLeaderboardOpen(true)}
               aria-expanded={isLeaderboardOpen}
               aria-controls="leaderboard-panel"
@@ -756,7 +800,7 @@ function App() {
             </button>
             <button
               type="button"
-              className="icon-button"
+              className="icon-button outline"
               onClick={() => setIsAnalyticsOpen(true)}
               aria-expanded={isAnalyticsOpen}
               aria-controls="analytics-panel"
@@ -766,7 +810,7 @@ function App() {
             </button>
             <button
               type="button"
-              className="icon-button logout"
+              className="icon-button subtle logout"
               onClick={handleLogout}
               disabled={overlayActive}
               title="Logout and change player"
