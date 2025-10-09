@@ -44,12 +44,12 @@ const DECK_SIZE = 16
 const AFK_LATENCY_THRESHOLD_MS = 10_000
 
 const LEVEL_BANDS = [
-  { name: 'Scout 👀', minScore: 0 },
-  { name: 'Observer 🔍', minScore: 25 },
-  { name: 'Sleuth 🕵️', minScore: 60 },
-  { name: 'Examiner 🔬', minScore: 120 },
-  { name: 'Analyst 📊', minScore: 200 },
-  { name: 'Oracle 🔮', minScore: 320 },
+  { name: 'Scout', minScore: 0 },
+  { name: 'Observer', minScore: 25 },
+  { name: 'Sleuth', minScore: 60 },
+  { name: 'Examiner', minScore: 120 },
+  { name: 'Analyst', minScore: 200 },
+  { name: 'Oracle', minScore: 320 },
 ]
 
 const truncate = (value: string, max = 140): string => {
