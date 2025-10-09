@@ -658,12 +658,6 @@ function App() {
           </div>
         </header>
 
-        {feedbackMessage && (
-          <div className={`feedback-message ${feedbackMessage.type}`}>
-            {feedbackMessage.message}
-          </div>
-        )}
-
         <main
           className="minimal-main"
           aria-hidden={showOnboarding}
@@ -821,6 +815,11 @@ function App() {
 
         </main>
       </div>
+      {feedbackMessage && (
+        <div className={`feedback-message ${feedbackMessage.type}`} role="status" aria-live="polite">
+          {feedbackMessage.message}
+        </div>
+      )}
 
       {isInfoOpen && (
         <div
