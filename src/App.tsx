@@ -713,8 +713,8 @@ function App() {
           <div className="brand-stack">
             <h2 className="brand-heading">Hot or Slop 🔥🤖</h2>
             <p className="brand-subtitle">
-              Visual Turing Test is an open research experiment where the crowd probes the state of generative image
-              models and tracks our collective ability to call the fake.
+              A visual Turing test where the crowd probes the state of generative image models and tracks our collective
+              ability to call the fake.
             </p>
           </div>
         </header>
