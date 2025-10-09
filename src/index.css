@@ -10,8 +10,21 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #f8f7fb;
-  background-color: #0a0814;
+  color: #f5f1e8;
+  background-color: #433633;
+  --color-bg: #433633;
+  --color-surface: #56494e;
+  --color-surface-soft: #5f524f;
+  --color-surface-alt: #6c8ead;
+  --color-border: rgba(255, 241, 225, 0.16);
+  --color-shadow: rgba(18, 10, 8, 0.45);
+  --color-text-primary: #f5f1e8;
+  --color-text-secondary: rgba(245, 241, 232, 0.75);
+  --color-text-muted: rgba(245, 241, 232, 0.6);
+  --color-primary: #ff4e00;
+  --color-secondary: #6c8ead;
+  --color-accent: #588157;
+  --color-danger: #ff4e00;
 }
 
 a {
@@ -26,10 +39,10 @@ a:hover {
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #0a0814;
+  background-color: var(--color-bg);
   display: flex;
   justify-content: center;
-  color: #f8f7fb;
+  color: var(--color-text-primary);
 }
 
 #root {
