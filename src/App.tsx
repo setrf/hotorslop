@@ -644,10 +644,16 @@ function App() {
       return { scores: [0, 1], percentile: 0.5 }
     }
     const sorted = [...scores].sort((a, b) => a - b)
+
+    if (playerRank >= 0 && leaderboard.length > 0) {
+      const percentile = leaderboard.length === 1 ? 1 : 1 - playerRank / leaderboard.length
+      return { scores: sorted, percentile }
+    }
+
     const belowOrEqual = sorted.filter((value) => value <= score).length
     const percentile = belowOrEqual / sorted.length
     return { scores: sorted, percentile }
-  }, [leaderboard, score])
+  }, [leaderboard, playerRank, score])
 
   const levelInfo = useMemo(() => {
     const bands = LEVEL_BANDS
