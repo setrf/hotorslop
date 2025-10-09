@@ -433,7 +433,7 @@ function App() {
         setFeedbackMessage(null)
         advanceCard()
         setIsLocked(false)
-      }, 820)
+      }, 2200)
 
       // Refresh leaderboard immediately after each guess to show updated rankings
       loadGlobalLeaderboard().catch(error => {

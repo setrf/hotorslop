@@ -1502,7 +1502,7 @@
   font-size: 0.9rem;
   text-align: center;
   z-index: 50;
-  animation: feedbackSlide 0.4s ease forwards;
+  animation: feedbackSlide 2.2s ease forwards;
   box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
   pointer-events: none;
   max-width: min(90vw, 480px);
@@ -1512,19 +1512,19 @@
 @keyframes feedbackSlide {
   0% {
     opacity: 0;
-    transform: translate(-50%, -160%);
+    transform: translate(-50%, -170%);
   }
-  20% {
+  12% {
     opacity: 1;
     transform: translate(-50%, 0%);
   }
-  80% {
+  75% {
     opacity: 1;
     transform: translate(-50%, 0%);
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -160%);
+    transform: translate(-50%, -170%);
   }
 }
 
