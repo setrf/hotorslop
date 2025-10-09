@@ -41,6 +41,7 @@ const hasFinishedOnboarding = (): boolean => {
 const formatScore = (score: number): string => (score > 0 ? `+${score}` : `${score}`)
 
 const DECK_SIZE = 16
+const AFK_LATENCY_THRESHOLD_MS = 10_000
 
 const LEVEL_BANDS = [
   { name: 'Scout 👀', minScore: 0 },
@@ -351,7 +352,38 @@ function App() {
 
       const correct = currentCard.answer === guess
       const latencyMs = Math.max(0, Math.round(nowMs() - (cardRevealTimeRef.current ?? nowMs())))
+      const isAfkGuess = latencyMs > AFK_LATENCY_THRESHOLD_MS
       const datasetSource = currentCard.label === 'fake' ? 'synthetic' : 'real'
+
+      if (isAfkGuess) {
+        feedbackCounterRef.current += 1
+        const inactivitySeconds = latencyMs / 1000
+        setFeedbackMessage({
+          id: feedbackCounterRef.current,
+          message: `Guess skipped after ${inactivitySeconds.toFixed(1)}s of inactivity — no score change.`,
+          type: 'error',
+        })
+
+        if (resultTimeoutRef.current) {
+          window.clearTimeout(resultTimeoutRef.current)
+        }
+        if (cardAdvanceTimeoutRef.current) {
+          window.clearTimeout(cardAdvanceTimeoutRef.current)
+        }
+
+        cardAdvanceTimeoutRef.current = window.setTimeout(() => {
+          advanceCard()
+          setIsLocked(false)
+          cardAdvanceTimeoutRef.current = null
+        }, 420)
+
+        resultTimeoutRef.current = window.setTimeout(() => {
+          setFeedbackMessage(null)
+          resultTimeoutRef.current = null
+        }, 2200)
+
+        return
+      }
 
       analytics.trackGuess({
         deckId: currentDeckIdRef.current,
