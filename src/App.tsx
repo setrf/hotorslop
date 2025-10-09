@@ -38,7 +38,7 @@ const hasFinishedOnboarding = (): boolean => {
   return window.localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'true'
 }
 
-const formatScore = (score: number): string => (score > 0 ? `+${score}` : `${score}`)
+const formatScore = (score: number): string => `${score}`
 
 const DECK_SIZE = 16
 const AFK_LATENCY_THRESHOLD_MS = 25_000
