@@ -47,7 +47,7 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 0.8rem;
+  gap: 0.6rem;
 }
 
 .onboarding-header .brand-mark {
@@ -248,7 +248,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.9rem;
+  gap: 0.7rem;
   text-align: center;
 }
 
@@ -682,9 +682,9 @@
   border-collapse: collapse;
   border-radius: 18px;
   overflow: hidden;
-  background: rgba(26, 18, 48, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: rgba(95, 82, 79, 0.8);
+  border: 1px solid rgba(255, 241, 225, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 241, 225, 0.05);
 }
 
 .leaderboard-table th,
@@ -702,11 +702,11 @@
 }
 
 .leaderboard-table tbody tr:not(:last-child) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 241, 225, 0.08);
 }
 
 .leaderboard-table tr.highlight {
-  background: linear-gradient(120deg, rgba(121, 233, 217, 0.18), rgba(120, 190, 255, 0.18));
+  background: linear-gradient(120deg, rgba(255, 116, 50, 0.2), rgba(108, 142, 173, 0.2));
 }
 
 .leaderboard-table td:nth-child(1),
@@ -1295,8 +1295,8 @@
 .analytics-metric-grid article {
   padding: 0.9rem 1rem;
   border-radius: 18px;
-  background: rgba(26, 18, 48, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(95, 82, 79, 0.88);
+  border: 1px solid rgba(255, 241, 225, 0.12);
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -1317,9 +1317,9 @@
   border-collapse: collapse;
   border-radius: 18px;
   overflow: hidden;
-  background: rgba(26, 18, 48, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: rgba(95, 82, 79, 0.8);
+  border: 1px solid rgba(255, 241, 225, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 241, 225, 0.05);
 }
 
 .analytics-table th,
@@ -1514,9 +1514,9 @@
 }
 .feedback-message {
   position: fixed;
-  top: clamp(0.8rem, 4vw, 1.5rem);
+  top: clamp(1.6rem, 6vw, 2.5rem);
   left: 50%;
-  transform: translate(-50%, -150%);
+  transform: translate(-50%, -50%);
   padding: 1.1rem 2.4rem;
   border-radius: 24px;
   font-weight: 600;
