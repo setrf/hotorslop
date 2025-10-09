@@ -41,7 +41,7 @@ const hasFinishedOnboarding = (): boolean => {
 const formatScore = (score: number): string => (score > 0 ? `+${score}` : `${score}`)
 
 const DECK_SIZE = 16
-const AFK_LATENCY_THRESHOLD_MS = 10_000
+const AFK_LATENCY_THRESHOLD_MS = 25_000
 
 const LEVEL_BANDS = [
   { name: 'Scout', minScore: 0 },
