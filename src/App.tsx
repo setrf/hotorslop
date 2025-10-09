@@ -121,6 +121,7 @@ function App() {
   const [rotation, setRotation] = useState(0)
   const [activeGuess, setActiveGuess] = useState<GuessType | null>(null)
   const resultTimeoutRef = useRef<number | null>(null)
+  const cardAdvanceTimeoutRef = useRef<number | null>(null)
   const activeGuessTimeoutRef = useRef<number | null>(null)
   const nextDeckRef = useRef<HotOrSlopImage[] | null>(null)
   const isPrefetchingRef = useRef(false)
@@ -428,11 +429,19 @@ function App() {
       if (resultTimeoutRef.current) {
         window.clearTimeout(resultTimeoutRef.current)
       }
+      if (cardAdvanceTimeoutRef.current) {
+        window.clearTimeout(cardAdvanceTimeoutRef.current)
+      }
+
+      cardAdvanceTimeoutRef.current = window.setTimeout(() => {
+        advanceCard()
+        setIsLocked(false)
+        cardAdvanceTimeoutRef.current = null
+      }, 420)
 
       resultTimeoutRef.current = window.setTimeout(() => {
         setFeedbackMessage(null)
-        advanceCard()
-        setIsLocked(false)
+        resultTimeoutRef.current = null
       }, 2200)
 
       // Refresh leaderboard immediately after each guess to show updated rankings
@@ -497,6 +506,10 @@ function App() {
         window.clearTimeout(activeGuessTimeoutRef.current)
         activeGuessTimeoutRef.current = null
       }
+      if (cardAdvanceTimeoutRef.current && typeof window !== 'undefined') {
+        window.clearTimeout(cardAdvanceTimeoutRef.current)
+        cardAdvanceTimeoutRef.current = null
+      }
     }
   }, [])
 
@@ -538,6 +551,10 @@ function App() {
     if (activeGuessTimeoutRef.current) {
       window.clearTimeout(activeGuessTimeoutRef.current)
       activeGuessTimeoutRef.current = null
+    }
+    if (cardAdvanceTimeoutRef.current) {
+      window.clearTimeout(cardAdvanceTimeoutRef.current)
+      cardAdvanceTimeoutRef.current = null
     }
 
     // Reset analytics session
