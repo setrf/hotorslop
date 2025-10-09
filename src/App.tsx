@@ -421,10 +421,15 @@ function App() {
         }
       }
 
-      const feedbackMessage = getFeedbackMessage(correct, correct ? nextStreak : 0, perfectDeckStreak)
+      const feedbackText = getFeedbackMessage(correct, correct ? nextStreak : 0, perfectDeckStreak)
       const motivationalMessage = getMotivationalMessage(correct, currentCard.answer)
 
-      setFeedbackMessage({ message: `${feedbackMessage} ${motivationalMessage}`, type: correct ? 'success' : 'error' })
+      feedbackCounterRef.current += 1
+      setFeedbackMessage({
+        id: feedbackCounterRef.current,
+        message: `${feedbackText} ${motivationalMessage}`,
+        type: correct ? 'success' : 'error',
+      })
 
       if (resultTimeoutRef.current) {
         window.clearTimeout(resultTimeoutRef.current)
@@ -537,6 +542,8 @@ function App() {
     setDeck([])
     setIsLoadingDeck(true)
     setActiveGuess(null)
+    setFeedbackMessage(null)
+    feedbackCounterRef.current = 0
 
     // Close all modals
     setIsInfoOpen(false)
@@ -653,7 +660,9 @@ function App() {
     .filter(Boolean)
     .join(' ')
 
-  const [feedbackMessage, setFeedbackMessage] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  type FeedbackBanner = { id: number; message: string; type: 'success' | 'error' }
+  const [feedbackMessage, setFeedbackMessage] = useState<FeedbackBanner | null>(null)
+  const feedbackCounterRef = useRef(0)
 
   const getGuessButtonClassName = useCallback(
     (type: GuessType) =>
@@ -833,7 +842,12 @@ function App() {
         </main>
       </div>
       {feedbackMessage && (
-        <div className={`feedback-message ${feedbackMessage.type}`} role="status" aria-live="polite">
+        <div
+          key={feedbackMessage.id}
+          className={`feedback-message ${feedbackMessage.type}`}
+          role="status"
+          aria-live="polite"
+        >
           {feedbackMessage.message}
         </div>
       )}
