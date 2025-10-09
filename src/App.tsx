@@ -99,6 +99,18 @@ function App() {
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false)
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0 })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (showOnboarding || isInfoOpen || isLeaderboardOpen || isAnalyticsOpen) return
+    window.scrollTo({ top: 0, left: 0 })
+  }, [isAnalyticsOpen, isInfoOpen, isLeaderboardOpen, showOnboarding])
+
+  useEffect(() => {
     if (typeof document === 'undefined') return undefined
     const originalOverflow = document.body.style.overflow
     if (showOnboarding || isLeaderboardOpen || isInfoOpen || isAnalyticsOpen) {
