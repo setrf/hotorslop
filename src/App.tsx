@@ -824,7 +824,9 @@ function App() {
                     {Math.max(0, score - levelInfo.lowerBound)} / {levelInfo.nextTarget - levelInfo.lowerBound}
                   </span>
                 )}
-                <div className="level-progress-fill" style={{ width: `${Math.min(levelInfo.progress * 100, 100)}%` }} />
+                <div className="level-progress-bar">
+                  <div className="level-progress-fill" style={{ width: `${Math.min(levelInfo.progress * 100, 100)}%` }} />
+                </div>
               </div>
             </section>
           </div>

@@ -1124,22 +1124,28 @@
 
 
 .level-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.level-progress-counter {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(246, 244, 255, 0.64);
+  align-self: flex-end;
+}
+
+.level-progress-bar {
   position: relative;
   width: 100%;
   height: 16px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
   overflow: hidden;
-}
-
-.level-progress-counter {
-  position: absolute;
-  top: -1.8rem;
-  right: 0;
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(246, 244, 255, 0.64);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .level-progress-fill {
@@ -1226,16 +1232,11 @@
 }
 
 .session-level .level-progress {
-  width: 100%;
-  height: 16px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  gap: 0.35rem;
 }
 
 .session-level .level-progress-counter {
-  top: -2.1rem;
+  font-size: 0.74rem;
 }
 
 .session-level .level-progress-label {
@@ -1459,7 +1460,6 @@
 
   .level-progress-counter {
     font-size: 0.68rem;
-    top: -1.6rem;
   }
 
   .guess-button {
@@ -1497,7 +1497,6 @@
 
   .level-progress-counter {
     font-size: 0.6rem;
-    top: -1.4rem;
   }
 
   .guess-button {
