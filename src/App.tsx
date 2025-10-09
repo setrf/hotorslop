@@ -821,11 +821,6 @@ function App() {
               <div className="level-progress">
                 <div className="level-progress-fill" style={{ width: `${Math.min(levelInfo.progress * 100, 100)}%` }} />
               </div>
-              <span className="level-progress-label">
-                {levelInfo.nextTarget !== null
-                  ? `${Math.max(0, levelInfo.nextTarget - score)} points to ${levelInfo.nextName}`
-                  : 'You’ve reached the top tier.'}
-              </span>
             </section>
           </div>
 

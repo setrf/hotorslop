@@ -1139,11 +1139,8 @@
   box-shadow: 0 0 12px rgba(134, 236, 255, 0.45);
 }
 
-.level-progress-label {
-  display: block;
-  margin-top: 0.55rem;
-  font-size: 0.8rem;
-  color: rgba(246, 244, 255, 0.74);
+ .level-progress-label {
+  display: none;
 }
 
 
@@ -1227,11 +1224,7 @@
 }
 
 .session-level .level-progress-label {
-  display: block;
-  margin-top: 0.55rem;
-  font-size: 0.8rem;
-  color: rgba(246, 244, 255, 0.74);
-  text-align: center;
+  display: none;
 }
 
 .analytics-layer {
@@ -1446,8 +1439,7 @@
   }
 
   .level-progress-label {
-    text-align: center;
-    font-size: 0.65rem; /* Smaller font for level progress label */
+    display: none;
   }
 
   .guess-button {
@@ -1480,10 +1472,7 @@
   }
 
   .level-progress-label {
-    font-size: 0.55rem;
-    white-space: nowrap; /* Ensure it stays on one line */
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: none;
   }
 
   .guess-button {
