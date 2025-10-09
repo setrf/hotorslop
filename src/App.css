@@ -153,18 +153,22 @@
   align-items: center;
 }
 
-.brand-title {
+.brand-heading {
   margin: 0;
-  font-size: clamp(2.1rem, 5vw, 3.4rem);
-  letter-spacing: -0.02em;
+  font-size: clamp(1.4rem, 4vw, 2.2rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   font-weight: 600;
 }
 
-.brand-level {
-  font-size: 0.85rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(246, 244, 255, 0.62);
+.brand-subtitle {
+  margin: 0;
+  margin-top: 0.35rem;
+  max-width: 36ch;
+  font-size: clamp(0.9rem, 2.6vw, 1.08rem);
+  line-height: 1.7;
+  color: rgba(246, 244, 255, 0.74);
+  text-align: center;
 }
 
 .icon-button {

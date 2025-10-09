@@ -712,7 +712,11 @@ function App() {
         <header className="top-bar">
           <div className="brand-stack">
             <span className="brand-mark">Hot or Slop 🔥🤖</span>
-            <h1 className="brand-title">Call the fake.</h1>
+            <h2 className="brand-heading">Visual Turing Test</h2>
+            <p className="brand-subtitle">
+              An open research experiment where the crowd probes the state of generative image models and tracks our
+              collective ability to call the fake.
+            </p>
           </div>
         </header>
 
