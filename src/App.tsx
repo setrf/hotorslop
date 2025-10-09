@@ -814,7 +814,7 @@ function App() {
                 <div>
                   <span className="stat-label">Next</span>
                   <span className="stat-value">
-                    {levelInfo.nextTarget !== null ? `Level ${levelInfo.index + 2} · ${levelInfo.nextName} (${formatScore(levelInfo.nextTarget)})` : 'Maxed'}
+                    {levelInfo.nextTarget !== null ? `Level ${levelInfo.index + 2} · ${levelInfo.nextName}` : 'Maxed'}
                   </span>
                 </div>
               </div>
