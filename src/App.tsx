@@ -1003,7 +1003,13 @@ function App() {
                           <td>{entry.rank}</td>
                           <td>
                             {entry.username}
-                            {entry.is_active && <span className="active-indicator" title="Currently playing">🟢</span>}
+                            {entry.is_active && (
+                              <span
+                                className="active-indicator"
+                                aria-label="Currently playing"
+                                title="Currently playing"
+                              />
+                            )}
                           </td>
                           <td>{entry.total_rounds}</td>
                           <td>{formatScore(entry.current_score)}</td>
