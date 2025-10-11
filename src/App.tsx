@@ -26,6 +26,7 @@ type LeaderboardEntry = {
 const PLAYER_STORAGE_KEY = 'hotorslop_player_name'
 const LEADERBOARD_STORAGE_KEY = 'hotorslop_leaderboard'
 const ONBOARDING_STORAGE_KEY = 'hotorslop_onboarded'
+const COOKIE_CONSENT_KEY = 'hotorslop_cookie_consent'
 
 
 const loadPlayerName = (): string => {
@@ -36,6 +37,14 @@ const loadPlayerName = (): string => {
 const hasFinishedOnboarding = (): boolean => {
   if (typeof window === 'undefined') return false
   return window.localStorage.getItem(ONBOARDING_STORAGE_KEY) === 'true'
+}
+
+type CookiePreference = 'accepted' | 'declined'
+
+const loadCookiePreference = (): CookiePreference | null => {
+  if (typeof window === 'undefined') return null
+  const stored = window.localStorage.getItem(COOKIE_CONSENT_KEY)
+  return stored === 'accepted' || stored === 'declined' ? stored : null
 }
 
 const formatScore = (score: number): string => `${score}`
@@ -97,6 +106,8 @@ function App() {
   const [isInfoOpen, setIsInfoOpen] = useState(false)
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false)
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false)
+  const [cookiePreference, setCookiePreference] = useState<CookiePreference | null>(() => loadCookiePreference())
+  const showCookieBanner = cookiePreference === null
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -109,6 +120,30 @@ function App() {
     if (showOnboarding || isInfoOpen || isLeaderboardOpen || isAnalyticsOpen) return
     window.scrollTo({ top: 0, left: 0 })
   }, [isAnalyticsOpen, isInfoOpen, isLeaderboardOpen, showOnboarding])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const gtag = (window as typeof window & { gtag?: (...args: unknown[]) => void }).gtag
+
+    if (cookiePreference === 'accepted') {
+      window.localStorage.setItem(COOKIE_CONSENT_KEY, 'accepted')
+      analytics.updateSession({ optedIn: true })
+      if (typeof gtag === 'function') {
+        gtag('consent', 'update', { ad_storage: 'granted', analytics_storage: 'granted' })
+      }
+    } else if (cookiePreference === 'declined') {
+      window.localStorage.setItem(COOKIE_CONSENT_KEY, 'declined')
+      analytics.updateSession({ optedIn: false })
+      if (typeof gtag === 'function') {
+        gtag('consent', 'update', { ad_storage: 'denied', analytics_storage: 'denied' })
+      }
+    } else {
+      analytics.updateSession({ optedIn: false })
+      if (typeof gtag === 'function') {
+        gtag('consent', 'default', { ad_storage: 'denied', analytics_storage: 'denied' })
+      }
+    }
+  }, [cookiePreference])
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined
@@ -615,6 +650,14 @@ function App() {
     setShowOnboarding(true)
   }, [])
 
+  const handleAcceptCookies = useCallback(() => {
+    setCookiePreference('accepted')
+  }, [])
+
+  const handleDeclineCookies = useCallback(() => {
+    setCookiePreference('declined')
+  }, [])
+
   const handleInfoBackdropClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (event.target === event.currentTarget) {
@@ -904,6 +947,25 @@ function App() {
           aria-live="polite"
         >
           {feedbackMessage.message}
+        </div>
+      )}
+
+      {showCookieBanner && (
+        <div className="cookie-banner" role="dialog" aria-live="polite">
+          <div className="cookie-content">
+            <p>
+              We use cookies and local storage to keep sessions, analytics, and leaderboards in sync. Accept to share usage data for
+              research, or decline to continue with minimal tracking.
+            </p>
+            <div className="cookie-actions">
+              <button type="button" className="cookie-button positive" onClick={handleAcceptCookies}>
+                Accept
+              </button>
+              <button type="button" className="cookie-button" onClick={handleDeclineCookies}>
+                Decline
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
