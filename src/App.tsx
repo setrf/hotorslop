@@ -818,29 +818,6 @@ function App() {
                 role="img"
                 aria-label={`${truncate(currentCard.prompt, 160)} — guess if it is real or AI generated`}
               >
-                {/* Swipe direction indicators */}
-                <div
-                  className="swipe-indicator swipe-indicator-left"
-                  style={{
-                    opacity: Math.max(0, Math.min(1, Math.abs(offset) / 150)) * (offset < 0 ? 1 : 0)
-                  }}
-                >
-                  <div className="swipe-indicator-content">
-                    <span className="swipe-emoji">🤖</span>
-                    <span className="swipe-label">SLOP</span>
-                  </div>
-                </div>
-                <div
-                  className="swipe-indicator swipe-indicator-right"
-                  style={{
-                    opacity: Math.max(0, Math.min(1, Math.abs(offset) / 150)) * (offset > 0 ? 1 : 0)
-                  }}
-                >
-                  <div className="swipe-indicator-content">
-                    <span className="swipe-emoji">📸</span>
-                    <span className="swipe-label">HOT</span>
-                  </div>
-                </div>
                 <img src={currentCard.src} alt="" draggable={false} />
               </div>
             </>
@@ -961,6 +938,32 @@ function App() {
           </div>
 
         </main>
+
+        {/* Swipe direction indicators */}
+        {currentCard && (
+          <>
+            <div
+              className="swipe-indicator swipe-indicator-left"
+              style={{
+                opacity: Math.max(0, Math.min(1, Math.abs(offset) / 150)) * (offset < 0 ? 1 : 0)
+              }}
+            >
+              <div className="swipe-indicator-content">
+                <span className="swipe-label">AI-Generated</span>
+              </div>
+            </div>
+            <div
+              className="swipe-indicator swipe-indicator-right"
+              style={{
+                opacity: Math.max(0, Math.min(1, Math.abs(offset) / 150)) * (offset > 0 ? 1 : 0)
+              }}
+            >
+              <div className="swipe-indicator-content">
+                <span className="swipe-label">Real</span>
+              </div>
+            </div>
+          </>
+        )}
       </div>
       {feedbackMessage && (
         <div

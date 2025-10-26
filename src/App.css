@@ -348,63 +348,81 @@
 
 .swipe-indicator {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 50%;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  transition: opacity 0.1s ease-out;
-  z-index: 2;
+  transition: opacity 0.15s ease-out;
+  z-index: 10;
 }
 
 .swipe-indicator-left {
-  left: 0;
-  background: linear-gradient(to right, rgba(255, 107, 107, 0.85), transparent);
-  backdrop-filter: blur(8px);
+  left: -80px;
 }
 
 .swipe-indicator-right {
-  right: 0;
-  background: linear-gradient(to left, rgba(107, 203, 119, 0.85), transparent);
-  backdrop-filter: blur(8px);
+  right: -80px;
+}
+
+@media (max-width: 768px) {
+  .swipe-indicator-left {
+    left: -60px;
+  }
+
+  .swipe-indicator-right {
+    right: -60px;
+  }
+}
+
+@media (max-width: 540px) {
+  .swipe-indicator-left {
+    left: 8px;
+  }
+
+  .swipe-indicator-right {
+    right: 8px;
+  }
 }
 
 .swipe-indicator-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  padding: 1.5rem;
-  transform: scale(1.1);
+  gap: 0.3rem;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, rgba(86, 73, 78, 0.95), rgba(67, 54, 51, 0.95));
+  border-radius: 16px;
+  border: 1px solid rgba(255, 241, 225, 0.2);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
 .swipe-indicator-left .swipe-indicator-content {
-  margin-right: auto;
-  margin-left: 1.5rem;
+  border-left: 3px solid rgba(255, 107, 107, 0.9);
 }
 
 .swipe-indicator-right .swipe-indicator-content {
-  margin-left: auto;
-  margin-right: 1.5rem;
-}
-
-.swipe-emoji {
-  font-size: 3rem;
-  line-height: 1;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+  border-right: 3px solid rgba(107, 203, 119, 0.9);
 }
 
 .swipe-label {
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.98);
-  text-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.6),
-    0 0 20px rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+}
+
+.swipe-indicator-left .swipe-label {
+  color: rgba(255, 150, 150, 1);
+}
+
+.swipe-indicator-right .swipe-label {
+  color: rgba(150, 220, 160, 1);
 }
 
 .card-placeholder {
