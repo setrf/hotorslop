@@ -361,14 +361,12 @@
 
 .swipe-indicator-left {
   left: 0;
-  background: linear-gradient(to right, rgba(255, 107, 107, 0.85), transparent);
-  backdrop-filter: blur(8px);
+  background: linear-gradient(to right, rgba(255, 107, 107, 0.75), transparent);
 }
 
 .swipe-indicator-right {
   right: 0;
-  background: linear-gradient(to left, rgba(107, 203, 119, 0.85), transparent);
-  backdrop-filter: blur(8px);
+  background: linear-gradient(to left, rgba(107, 203, 119, 0.75), transparent);
 }
 
 .swipe-indicator-content {
