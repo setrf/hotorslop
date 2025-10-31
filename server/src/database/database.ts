@@ -1,8 +1,4 @@
-import initSqlJs, {
-  type Database as SqlJsDatabase,
-  type Statement as SqlJsStatement,
-  type SqlJsStatic
-} from 'sql.js';
+import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -16,121 +12,50 @@ type RunResult = {
 };
 
 class StatementWrapper {
-  constructor(
-    private readonly db: SqlJsDatabase,
-    private readonly sql: string,
-    private readonly persist: () => void
-  ) {}
+  private stmt: Database.Statement;
 
-  private bind(stmt: SqlJsStatement, params: unknown[]): void {
-    if (!params || params.length === 0) return;
-    stmt.bind(params as SqlValue[]);
+  constructor(db: Database.Database, sql: string) {
+    this.stmt = db.prepare(sql);
   }
 
   get(...params: unknown[]): Record<string, unknown> | undefined {
-    const stmt = this.db.prepare(this.sql);
-    try {
-      this.bind(stmt, params);
-      if (!stmt.step()) return undefined;
-      return stmt.getAsObject();
-    } finally {
-      stmt.free();
-    }
+    return this.stmt.get(...params) as Record<string, unknown> | undefined;
   }
 
   all(...params: unknown[]): Record<string, unknown>[] {
-    const stmt = this.db.prepare(this.sql);
-    try {
-      this.bind(stmt, params);
-      const rows: Record<string, unknown>[] = [];
-      while (stmt.step()) {
-        rows.push(stmt.getAsObject());
-      }
-      return rows;
-    } finally {
-      stmt.free();
-    }
+    return this.stmt.all(...params) as Record<string, unknown>[];
   }
 
   run(...params: unknown[]): RunResult {
-    const stmt = this.db.prepare(this.sql);
-    try {
-      this.bind(stmt, params);
-      // Step through the statement to ensure side effects occur.
-      while (stmt.step()) {
-        // no-op: stepping executes the statement.
-      }
-    } finally {
-      stmt.free();
-    }
-
-    const info = this.db.exec('SELECT changes() AS changes, last_insert_rowid() AS last_insert_rowid');
-    const result: RunResult = { changes: 0, lastInsertRowid: 0 };
-
-    if (info.length > 0 && info[0].values.length > 0) {
-      const columns = info[0].columns;
-      const values = info[0].values[0];
-      const changesIndex = columns.indexOf('changes');
-      const idIndex = columns.indexOf('last_insert_rowid');
-      if (changesIndex >= 0) {
-        result.changes = Number(values[changesIndex] ?? 0);
-      }
-      if (idIndex >= 0) {
-        result.lastInsertRowid = Number(values[idIndex] ?? 0);
-      }
-    }
-
-    this.persist();
-    return result;
+    const info = this.stmt.run(...params);
+    return {
+      changes: info.changes,
+      lastInsertRowid: Number(info.lastInsertRowid)
+    };
   }
 }
 
 class SqliteDatabase {
-  constructor(
-    private readonly db: SqlJsDatabase,
-    private readonly persist: () => void
-  ) {}
+  constructor(private readonly db: Database.Database) {}
 
   prepare(sql: string): StatementWrapper {
-    return new StatementWrapper(this.db, sql, this.persist);
+    return new StatementWrapper(this.db, sql);
   }
 
   exec(sql: string): void {
     this.db.exec(sql);
-    this.persist();
   }
 
   pragma(statement: string): void {
-    this.db.exec(`PRAGMA ${statement}`);
-    this.persist();
+    this.db.pragma(statement);
   }
 }
 
-type SqlValue = number | string | Uint8Array | null;
-
-let sqlModule: SqlJsStatic | null = null;
 let db: SqliteDatabase | null = null;
-let rawDb: SqlJsDatabase | null = null;
-let databasePath: string;
-
-const loadSqlModule = async (): Promise<SqlJsStatic> => {
-  if (sqlModule) return sqlModule;
-  sqlModule = await initSqlJs({
-    locateFile: (file: string) => path.join(path.resolve(__dirname, '../../'), 'node_modules/sql.js/dist', file)
-  });
-  return sqlModule;
-};
-
-const persistDatabase = () => {
-  if (!rawDb || !databasePath) return;
-  const data = rawDb.export();
-  fs.writeFileSync(databasePath, Buffer.from(data));
-};
+let rawDb: Database.Database | null = null;
 
 export async function initializeDatabase(): Promise<void> {
-  const SQL = await loadSqlModule();
-
-  databasePath = process.env.NODE_ENV === 'production'
+  const databasePath = process.env.NODE_ENV === 'production'
     ? path.join(__dirname, '../../data/hotorslop.db')
     : path.join(__dirname, '../../dev.db');
 
@@ -139,20 +64,13 @@ export async function initializeDatabase(): Promise<void> {
     fs.mkdirSync(dbDir, { recursive: true });
   }
 
-  let fileBuffer: Uint8Array | undefined;
-  if (fs.existsSync(databasePath)) {
-    const buffer = fs.readFileSync(databasePath);
-    fileBuffer = new Uint8Array(buffer);
-  }
+  // Initialize better-sqlite3 with WAL mode for better concurrency
+  rawDb = new Database(databasePath);
+  rawDb.pragma('journal_mode = WAL');
 
-  rawDb = fileBuffer ? new SQL.Database(fileBuffer) : new SQL.Database();
-  db = new SqliteDatabase(rawDb, persistDatabase);
-
-  // Align with previous behaviour; not all pragmas affect sql.js but kept for compatibility.
-  rawDb.exec('PRAGMA journal_mode = WAL');
+  db = new SqliteDatabase(rawDb);
 
   createTables();
-  persistDatabase();
 
   console.log('Database connected and tables created');
 }
