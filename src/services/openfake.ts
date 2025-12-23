@@ -6,6 +6,14 @@ const SYNTHETIC_SPLIT = 'test'
 const SYNTHETIC_DATASET_CARD_URL = `https://huggingface.co/datasets/${SYNTHETIC_DATASET_ID}`
 const SYNTHETIC_DATASET_LICENSE = 'CC BY-SA 4.0'
 
+// Nano-Banana dataset (Google Gemini 2.5 Flash generated images)
+const NANOBANANA_DATASET_ID = 'bitmind/nano-banana'
+const NANOBANANA_CONFIG = 'default'
+const NANOBANANA_SPLIT = 'train'
+const NANOBANANA_DATASET_CARD_URL = `https://huggingface.co/datasets/${NANOBANANA_DATASET_ID}`
+const NANOBANANA_DATASET_LICENSE = 'MIT'
+const NANOBANANA_MODEL_NAME = 'gemini-2.5-flash'
+
 const REAL_DATASET_ID = 'lmms-lab/COCO-Caption2017'
 const REAL_CONFIG = 'default'
 const REAL_SPLIT = 'val'
@@ -67,8 +75,28 @@ type CocoRowsResponse = {
   }>
 }
 
+type NanoBananaRowsResponse = {
+  rows: Array<{
+    row_idx: number
+    row: {
+      id?: number
+      image?: {
+        src?: string
+        width?: number
+        height?: number
+      }
+      format?: string
+      mode?: string
+      width?: number
+      height?: number
+      uploadtime?: string
+    }
+  }>
+}
+
 let cachedSyntheticRowCount: number | null = null
 let cachedRealRowCount: number | null = null
+let cachedNanoBananaRowCount: number | null = null
 
 const log = (...args: unknown[]) => {
   // Centralised logging so future suppression is easy.
@@ -91,6 +119,8 @@ const syntheticCacheQueue: HotOrSlopImage[] = []
 const syntheticCacheIds = new Set<string>()
 const realCacheQueue: HotOrSlopImage[] = []
 const realCacheIds = new Set<string>()
+const nanoBananaCacheQueue: HotOrSlopImage[] = []
+const nanoBananaCacheIds = new Set<string>()
 
 const trimCache = (queue: HotOrSlopImage[], idSet: Set<string>) => {
   while (queue.length > MAX_CACHE_SIZE) {
@@ -167,6 +197,7 @@ const labelToAnswerMap: Record<string, 'ai' | 'real'> = {
 
 const syntheticDefaultCredit = `OpenFake dataset · ${SYNTHETIC_DATASET_LICENSE}`
 const realDefaultCredit = `COCO-Caption2017 dataset · ${REAL_DATASET_LICENSE}`
+const nanoBananaDefaultCredit = `Nano-Banana dataset · ${NANOBANANA_DATASET_LICENSE}`
 
 const ALLOWED_MODEL_PREFIXES = ['real', 'imagen', 'gpt', 'flux']
 
@@ -214,6 +245,28 @@ const getRealRowCount = async (): Promise<number> => {
   return count
 }
 
+const getNanoBananaRowCount = async (): Promise<number> => {
+  if (cachedNanoBananaRowCount !== null) return cachedNanoBananaRowCount
+  const params = new URLSearchParams({
+    dataset: NANOBANANA_DATASET_ID,
+    config: NANOBANANA_CONFIG,
+    split: NANOBANANA_SPLIT,
+  })
+
+  const response = await fetch(`${HF_API_BASE}/info?${params.toString()}`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch nano-banana dataset info: ${response.status}`)
+  }
+  const json = (await response.json()) as DatasetInfoResponse
+  const count = json.dataset_info?.splits?.[NANOBANANA_SPLIT]?.num_examples
+  if (!count || Number.isNaN(count)) {
+    throw new Error('Unable to determine dataset size for bitmind/nano-banana')
+  }
+  cachedNanoBananaRowCount = count
+  log('Nano-Banana row count cached', { count })
+  return count
+}
+
 type FetchDeckParams = {
   count?: number
   limitPerFetch?: number
@@ -252,6 +305,24 @@ const fetchRealRows = async (offset: number, limit: number): Promise<CocoRowsRes
   }
   const data = (await response.json()) as CocoRowsResponse
   log('Fetched real batch', { offset, limit, size: data.rows?.length ?? 0 })
+  return data.rows ?? []
+}
+
+const fetchNanoBananaRows = async (offset: number, limit: number): Promise<NanoBananaRowsResponse['rows']> => {
+  const params = new URLSearchParams({
+    dataset: NANOBANANA_DATASET_ID,
+    config: NANOBANANA_CONFIG,
+    split: NANOBANANA_SPLIT,
+    offset: offset.toString(),
+    limit: limit.toString(),
+  })
+
+  const response = await fetch(`${HF_API_BASE}/rows?${params.toString()}`)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch nano-banana rows: ${response.status}`)
+  }
+  const data = (await response.json()) as NanoBananaRowsResponse
+  log('Fetched nano-banana batch', { offset, limit, size: data.rows?.length ?? 0 })
   return data.rows ?? []
 }
 
@@ -315,6 +386,77 @@ const buildRealImage = (
     credit: realDefaultCredit,
     datasetUrl: REAL_DATASET_CARD_URL,
   }
+}
+
+const buildNanoBananaImage = (
+  rowIdx: number,
+  raw: Required<NanoBananaRowsResponse['rows'][number]>['row']
+): HotOrSlopImage | null => {
+  const src = raw.image?.src
+  if (!src) return null
+
+  const identifier = raw.id !== undefined ? `${raw.id}` : `${rowIdx}`
+
+  return {
+    id: `nanobanana-${identifier}`,
+    src,
+    answer: 'ai',
+    label: 'fake',
+    prompt: 'AI-generated image from Nano-Banana dataset.',
+    model: NANOBANANA_MODEL_NAME,
+    credit: nanoBananaDefaultCredit,
+    datasetUrl: NANOBANANA_DATASET_CARD_URL,
+  }
+}
+
+const drawNanoBananaCards = async (count: number, limitPerFetch: number): Promise<HotOrSlopImage[]> => {
+  if (count <= 0) return []
+
+  let result = drawFromCache(nanoBananaCacheQueue, nanoBananaCacheIds, count, 'synthetic')
+  if (result.length >= count) {
+    return result
+  }
+
+  const totalRows = await getNanoBananaRowCount()
+
+  for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS && result.length < count; attempt += 1) {
+    const remaining = Math.max(count - result.length, 1)
+    const limit = Math.min(limitPerFetch, Math.max(remaining * 2, 12))
+    const maxOffset = Math.max(totalRows - limit, 0)
+    const offset = Math.floor(Math.random() * (maxOffset + 1))
+
+    const rows = await fetchNanoBananaRows(offset, limit)
+    const images = rows
+      .map((entry) => buildNanoBananaImage(entry.row_idx, entry.row))
+      .filter((image): image is HotOrSlopImage => image !== null)
+
+    const added = enqueueItems(nanoBananaCacheQueue, nanoBananaCacheIds, images, 'synthetic')
+
+    let taken = 0
+    const neededAfterEnqueue = count - result.length
+    if (neededAfterEnqueue > 0) {
+      const topUp = drawFromCache(nanoBananaCacheQueue, nanoBananaCacheIds, neededAfterEnqueue, 'synthetic')
+      taken = topUp.length
+      result = result.concat(topUp)
+    }
+
+    log('Nano-Banana attempt complete', {
+      attempt,
+      requested: count,
+      accumulated: result.length,
+      added,
+      taken,
+      offset,
+      limit,
+      cacheRemaining: nanoBananaCacheQueue.length,
+    })
+
+    if (added === 0 && taken === 0) {
+      break
+    }
+  }
+
+  return result
 }
 
 const drawSyntheticCards = async (count: number, limitPerFetch: number): Promise<HotOrSlopImage[]> => {
@@ -425,28 +567,56 @@ export const fetchOpenFakeDeck = async ({
   const targetFake = Math.ceil(desired / 2)
   const targetReal = desired - targetFake
 
+  // Split fake images between OpenFake (~60%) and Nano-Banana (~40%)
+  const targetOpenFake = Math.ceil(targetFake * 0.6)
+  const targetNanoBanana = targetFake - targetOpenFake
+
   // Use smaller limit for faster initial response
   const fastLimit = Math.min(limitPerFetch, 20)
 
-  log('Fetching deck', { desired, targetFake, targetReal, limitPerFetch: fastLimit })
-  const [initialFake, initialReal] = await Promise.all([
-    drawSyntheticCards(targetFake, fastLimit),
+  log('Fetching deck', {
+    desired,
+    targetFake,
+    targetOpenFake,
+    targetNanoBanana,
+    targetReal,
+    limitPerFetch: fastLimit,
+  })
+
+  const [initialOpenFake, initialNanoBanana, initialReal] = await Promise.all([
+    drawSyntheticCards(targetOpenFake, fastLimit),
+    drawNanoBananaCards(targetNanoBanana, fastLimit),
     drawRealCards(targetReal, fastLimit),
   ])
 
-  let combined: HotOrSlopImage[] = [...initialFake, ...initialReal]
-  let fakeCount = initialFake.length
+  let combined: HotOrSlopImage[] = [...initialOpenFake, ...initialNanoBanana, ...initialReal]
+  let fakeCount = initialOpenFake.length + initialNanoBanana.length
   let realCount = initialReal.length
 
-  log('Initial draw complete', { fakeCount, realCount, combined: combined.length })
+  log('Initial draw complete', {
+    openFake: initialOpenFake.length,
+    nanoBanana: initialNanoBanana.length,
+    fakeCount,
+    realCount,
+    combined: combined.length,
+  })
 
   if (fakeCount < targetFake) {
     const neededFake = Math.min(targetFake - fakeCount, Math.max(desired - combined.length, 0))
     if (neededFake > 0) {
-      const extraFake = await drawSyntheticCards(neededFake, limitPerFetch)
-      combined = [...combined, ...extraFake]
-      fakeCount += extraFake.length
-      log('Synthetic top-up applied', { added: extraFake.length, fakeCount })
+      // Try nano-banana first for variety, then fall back to OpenFake
+      const extraNanoBanana = await drawNanoBananaCards(Math.ceil(neededFake / 2), limitPerFetch)
+      combined = [...combined, ...extraNanoBanana]
+      fakeCount += extraNanoBanana.length
+      log('Nano-Banana top-up applied', { added: extraNanoBanana.length, fakeCount })
+
+      const stillNeeded = targetFake - fakeCount
+      if (stillNeeded > 0) {
+        const extraOpenFake = await drawSyntheticCards(stillNeeded, limitPerFetch)
+        combined = [...combined, ...extraOpenFake]
+        fakeCount += extraOpenFake.length
+        log('Synthetic top-up applied', { added: extraOpenFake.length, fakeCount })
+      }
     }
   }
 
@@ -461,6 +631,15 @@ export const fetchOpenFakeDeck = async ({
   }
 
   let shortage = desired - combined.length
+  if (shortage > 0) {
+    // Try both synthetic sources for fallback
+    const extraNanoBanana = await drawNanoBananaCards(Math.ceil(shortage / 3), limitPerFetch)
+    combined = [...combined, ...extraNanoBanana]
+    fakeCount += extraNanoBanana.length
+    shortage = desired - combined.length
+    log('Nano-Banana fallback draw', { added: extraNanoBanana.length, shortage })
+  }
+
   if (shortage > 0) {
     const extraSynthetic = await drawSyntheticCards(Math.ceil(shortage / 2), limitPerFetch)
     combined = [...combined, ...extraSynthetic]
@@ -502,6 +681,13 @@ export const OPEN_FAKE_CONSTANTS = {
     datasetUrl: SYNTHETIC_DATASET_CARD_URL,
     license: SYNTHETIC_DATASET_LICENSE,
     credit: syntheticDefaultCredit,
+  },
+  nanoBanana: {
+    datasetId: NANOBANANA_DATASET_ID,
+    datasetUrl: NANOBANANA_DATASET_CARD_URL,
+    license: NANOBANANA_DATASET_LICENSE,
+    model: NANOBANANA_MODEL_NAME,
+    credit: nanoBananaDefaultCredit,
   },
   real: {
     datasetId: REAL_DATASET_ID,
