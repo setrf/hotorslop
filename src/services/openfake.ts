@@ -1,6 +1,7 @@
 const HF_API_BASE = 'https://datasets-server.huggingface.co'
 
-const SYNTHETIC_DATASET_ID = 'ComplexDataLab/OpenFake'
+// Original dataset broken on 2025-12-22, using working fork
+const SYNTHETIC_DATASET_ID = 'Anonymous460/OpenFake'
 const SYNTHETIC_CONFIG = 'default'
 const SYNTHETIC_SPLIT = 'test'
 const SYNTHETIC_DATASET_CARD_URL = `https://huggingface.co/datasets/${SYNTHETIC_DATASET_ID}`
@@ -121,6 +122,8 @@ const realCacheQueue: HotOrSlopImage[] = []
 const realCacheIds = new Set<string>()
 const nanoBananaCacheQueue: HotOrSlopImage[] = []
 const nanoBananaCacheIds = new Set<string>()
+const openFakeRealCacheQueue: HotOrSlopImage[] = []
+const openFakeRealCacheIds = new Set<string>()
 
 const trimCache = (queue: HotOrSlopImage[], idSet: Set<string>) => {
   while (queue.length > MAX_CACHE_SIZE) {
@@ -198,6 +201,7 @@ const labelToAnswerMap: Record<string, 'ai' | 'real'> = {
 const syntheticDefaultCredit = `OpenFake dataset · ${SYNTHETIC_DATASET_LICENSE}`
 const realDefaultCredit = `COCO-Caption2017 dataset · ${REAL_DATASET_LICENSE}`
 const nanoBananaDefaultCredit = `Nano-Banana dataset · ${NANOBANANA_DATASET_LICENSE}`
+const openFakeRealDefaultCredit = `OpenFake dataset (real) · ${SYNTHETIC_DATASET_LICENSE}`
 
 const ALLOWED_MODEL_PREFIXES = ['real', 'imagen', 'gpt', 'flux']
 
@@ -388,6 +392,30 @@ const buildRealImage = (
   }
 }
 
+const buildOpenFakeRealImage = (
+  rowIdx: number,
+  raw: Required<RowsResponse['rows'][number]>['row']
+): HotOrSlopImage | null => {
+  const src = raw.image?.src
+  const label = raw.label
+  if (!src || !label) return null
+  // Only accept real images from OpenFake
+  if (label !== 'real') return null
+
+  const prompt = normalisePrompt(raw.prompt)
+
+  return {
+    id: `openfake-real-${rowIdx}`,
+    src,
+    answer: 'real',
+    label: 'real',
+    prompt,
+    model: 'real',
+    credit: openFakeRealDefaultCredit,
+    datasetUrl: SYNTHETIC_DATASET_CARD_URL,
+  }
+}
+
 const buildNanoBananaImage = (
   rowIdx: number,
   raw: Required<NanoBananaRowsResponse['rows'][number]>['row']
@@ -461,27 +489,19 @@ const drawNanoBananaCards = async (count: number, limitPerFetch: number): Promis
 
 const drawSyntheticCards = async (count: number, limitPerFetch: number): Promise<HotOrSlopImage[]> => {
   if (count <= 0) return []
-
   let result = drawFromCache(syntheticCacheQueue, syntheticCacheIds, count, 'synthetic')
-  if (result.length >= count) {
-    return result
-  }
-
+  if (result.length >= count) return result
   const totalRows = await getSyntheticRowCount()
-
   for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS && result.length < count; attempt += 1) {
     const remaining = Math.max(count - result.length, 1)
     const limit = Math.min(limitPerFetch, Math.max(remaining * 2, 12))
     const maxOffset = Math.max(totalRows - limit, 0)
     const offset = Math.floor(Math.random() * (maxOffset + 1))
-
     const rows = await fetchSyntheticRows(offset, limit)
     const images = rows
       .map((entry) => buildSyntheticImage(entry.row_idx, entry.row))
       .filter((image): image is HotOrSlopImage => image !== null)
-
     const added = enqueueItems(syntheticCacheQueue, syntheticCacheIds, images, 'synthetic')
-
     let taken = 0
     const neededAfterEnqueue = count - result.length
     if (neededAfterEnqueue > 0) {
@@ -489,23 +509,8 @@ const drawSyntheticCards = async (count: number, limitPerFetch: number): Promise
       taken = topUp.length
       result = result.concat(topUp)
     }
-
-    log('Synthetic attempt complete', {
-      attempt,
-      requested: count,
-      accumulated: result.length,
-      added,
-      taken,
-      offset,
-      limit,
-      cacheRemaining: syntheticCacheQueue.length,
-    })
-
-    if (added === 0 && taken === 0) {
-      break
-    }
+    if (added === 0 && taken === 0) break
   }
-
   return result
 }
 
@@ -559,6 +564,57 @@ const drawRealCards = async (count: number, limitPerFetch: number): Promise<HotO
   return result
 }
 
+const drawOpenFakeRealCards = async (count: number, limitPerFetch: number): Promise<HotOrSlopImage[]> => {
+  if (count <= 0) return []
+
+  let result = drawFromCache(openFakeRealCacheQueue, openFakeRealCacheIds, count, 'real')
+  if (result.length >= count) {
+    return result
+  }
+
+  const totalRows = await getSyntheticRowCount()
+
+  for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS && result.length < count; attempt += 1) {
+    const remaining = Math.max(count - result.length, 1)
+    // Request more since only ~50% of rows are 'real' labeled
+    const limit = Math.min(limitPerFetch, Math.max(remaining * 4, 30))
+    const maxOffset = Math.max(totalRows - limit, 0)
+    const offset = Math.floor(Math.random() * (maxOffset + 1))
+
+    const rows = await fetchSyntheticRows(offset, limit)
+    const images = rows
+      .map((entry) => buildOpenFakeRealImage(entry.row_idx, entry.row))
+      .filter((image): image is HotOrSlopImage => image !== null)
+
+    const added = enqueueItems(openFakeRealCacheQueue, openFakeRealCacheIds, images, 'real')
+
+    let taken = 0
+    const neededAfterEnqueue = count - result.length
+    if (neededAfterEnqueue > 0) {
+      const topUp = drawFromCache(openFakeRealCacheQueue, openFakeRealCacheIds, neededAfterEnqueue, 'real')
+      taken = topUp.length
+      result = result.concat(topUp)
+    }
+
+    log('OpenFake real attempt complete', {
+      attempt,
+      requested: count,
+      accumulated: result.length,
+      added,
+      taken,
+      offset,
+      limit,
+      cacheRemaining: openFakeRealCacheQueue.length,
+    })
+
+    if (added === 0 && taken === 0) {
+      break
+    }
+  }
+
+  return result
+}
+
 export const fetchOpenFakeDeck = async ({
   count = 24,
   limitPerFetch = 40,
@@ -567,12 +623,16 @@ export const fetchOpenFakeDeck = async ({
   const targetFake = Math.ceil(desired / 2)
   const targetReal = desired - targetFake
 
+  // Use smaller limit for faster initial response
+  const fastLimit = Math.min(limitPerFetch, 20)
+
   // Split fake images between OpenFake (~60%) and Nano-Banana (~40%)
   const targetOpenFake = Math.ceil(targetFake * 0.6)
   const targetNanoBanana = targetFake - targetOpenFake
 
-  // Use smaller limit for faster initial response
-  const fastLimit = Math.min(limitPerFetch, 20)
+  // Split real images between COCO (~60%) and OpenFake real (~40%)
+  const targetCocoReal = Math.ceil(targetReal * 0.6)
+  const targetOpenFakeReal = targetReal - targetCocoReal
 
   log('Fetching deck', {
     desired,
@@ -580,22 +640,27 @@ export const fetchOpenFakeDeck = async ({
     targetOpenFake,
     targetNanoBanana,
     targetReal,
+    targetCocoReal,
+    targetOpenFakeReal,
     limitPerFetch: fastLimit,
   })
 
-  const [initialOpenFake, initialNanoBanana, initialReal] = await Promise.all([
+  const [initialOpenFake, initialNanoBanana, initialCocoReal, initialOpenFakeReal] = await Promise.all([
     drawSyntheticCards(targetOpenFake, fastLimit),
     drawNanoBananaCards(targetNanoBanana, fastLimit),
-    drawRealCards(targetReal, fastLimit),
+    drawRealCards(targetCocoReal, fastLimit),
+    drawOpenFakeRealCards(targetOpenFakeReal, fastLimit),
   ])
 
-  let combined: HotOrSlopImage[] = [...initialOpenFake, ...initialNanoBanana, ...initialReal]
+  let combined: HotOrSlopImage[] = [...initialOpenFake, ...initialNanoBanana, ...initialCocoReal, ...initialOpenFakeReal]
   let fakeCount = initialOpenFake.length + initialNanoBanana.length
-  let realCount = initialReal.length
+  let realCount = initialCocoReal.length + initialOpenFakeReal.length
 
   log('Initial draw complete', {
     openFake: initialOpenFake.length,
     nanoBanana: initialNanoBanana.length,
+    cocoReal: initialCocoReal.length,
+    openFakeReal: initialOpenFakeReal.length,
     fakeCount,
     realCount,
     combined: combined.length,
@@ -623,16 +688,24 @@ export const fetchOpenFakeDeck = async ({
   if (realCount < targetReal) {
     const neededReal = Math.min(targetReal - realCount, Math.max(desired - combined.length, 0))
     if (neededReal > 0) {
-      const extraReal = await drawRealCards(neededReal, limitPerFetch)
-      combined = [...combined, ...extraReal]
-      realCount += extraReal.length
-      log('Real top-up applied', { added: extraReal.length, realCount })
+      // Try OpenFake real first for variety, then fall back to COCO
+      const extraOpenFakeReal = await drawOpenFakeRealCards(Math.ceil(neededReal / 2), limitPerFetch)
+      combined = [...combined, ...extraOpenFakeReal]
+      realCount += extraOpenFakeReal.length
+      log('OpenFake real top-up applied', { added: extraOpenFakeReal.length, realCount })
+
+      const stillNeededReal = targetReal - realCount
+      if (stillNeededReal > 0) {
+        const extraCocoReal = await drawRealCards(stillNeededReal, limitPerFetch)
+        combined = [...combined, ...extraCocoReal]
+        realCount += extraCocoReal.length
+        log('COCO real top-up applied', { added: extraCocoReal.length, realCount })
+      }
     }
   }
 
   let shortage = desired - combined.length
   if (shortage > 0) {
-    // Try both synthetic sources for fallback
     const extraNanoBanana = await drawNanoBananaCards(Math.ceil(shortage / 3), limitPerFetch)
     combined = [...combined, ...extraNanoBanana]
     fakeCount += extraNanoBanana.length
@@ -649,15 +722,23 @@ export const fetchOpenFakeDeck = async ({
   }
 
   if (shortage > 0) {
+    const extraOpenFakeReal = await drawOpenFakeRealCards(Math.ceil(shortage / 2), limitPerFetch)
+    combined = [...combined, ...extraOpenFakeReal]
+    realCount += extraOpenFakeReal.length
+    shortage = desired - combined.length
+    log('OpenFake real fallback draw', { added: extraOpenFakeReal.length, shortage })
+  }
+
+  if (shortage > 0) {
     const extraReal = await drawRealCards(shortage, limitPerFetch)
     combined = [...combined, ...extraReal]
     realCount += extraReal.length
     shortage = desired - combined.length
-    log('Real fallback draw', { added: extraReal.length, shortage })
+    log('COCO real fallback draw', { added: extraReal.length, shortage })
   }
 
   if (combined.length === 0) {
-    throw new Error('OpenFake request returned no usable images')
+    throw new Error('Could not fetch images from datasets')
   }
 
   if (combined.length < desired) {
@@ -694,5 +775,11 @@ export const OPEN_FAKE_CONSTANTS = {
     datasetUrl: REAL_DATASET_CARD_URL,
     license: REAL_DATASET_LICENSE,
     credit: realDefaultCredit,
+  },
+  openFakeReal: {
+    datasetId: SYNTHETIC_DATASET_ID,
+    datasetUrl: SYNTHETIC_DATASET_CARD_URL,
+    license: SYNTHETIC_DATASET_LICENSE,
+    credit: openFakeRealDefaultCredit,
   },
 }

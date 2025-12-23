@@ -256,7 +256,7 @@ const AdminAnalyticsPanel = ({ onClose }: AdminAnalyticsPanelProps) => {
                   <tbody>
                     {datasets.map((dataset) => (
                       <tr key={dataset.datasetSource}>
-                        <td>{dataset.datasetSource === 'synthetic' ? 'Synthetic (OpenFake)' : 'Real (COCO-Caption2017)'}</td>
+                        <td>{dataset.datasetSource === 'synthetic' ? 'Synthetic (OpenFake + Nano-Banana)' : 'Real (COCO + OpenFake)'}</td>
                         <td>{dataset.guesses.toLocaleString()}</td>
                         <td>{dataset.accuracy}%</td>
                         <td>{dataset.averageLatencyMs ? `${dataset.averageLatencyMs.toLocaleString()} ms` : '—'}</td>

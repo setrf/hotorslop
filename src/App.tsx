@@ -81,10 +81,22 @@ const DATASET_SOURCES: DatasetSource[] = [
     credit: OPEN_FAKE_CONSTANTS.synthetic.credit,
   },
   {
+    label: 'Nano-Banana (synthetic)',
+    url: OPEN_FAKE_CONSTANTS.nanoBanana.datasetUrl,
+    license: OPEN_FAKE_CONSTANTS.nanoBanana.license,
+    credit: OPEN_FAKE_CONSTANTS.nanoBanana.credit,
+  },
+  {
     label: 'COCO-Caption2017 (real)',
     url: OPEN_FAKE_CONSTANTS.real.datasetUrl,
     license: OPEN_FAKE_CONSTANTS.real.license,
     credit: OPEN_FAKE_CONSTANTS.real.credit,
+  },
+  {
+    label: 'OpenFake (real)',
+    url: OPEN_FAKE_CONSTANTS.openFakeReal.datasetUrl,
+    license: OPEN_FAKE_CONSTANTS.openFakeReal.license,
+    credit: OPEN_FAKE_CONSTANTS.openFakeReal.credit,
   },
 ]
 
@@ -1040,9 +1052,9 @@ function App() {
             <section className="info-section">
               <h3>Dataset</h3>
               <p className="info-text">
-                Synthetic images stream from the OpenFake dataset ({OPEN_FAKE_CONSTANTS.synthetic.license}); real photos
-                come from the COCO-Caption2017 dataset ({OPEN_FAKE_CONSTANTS.real.license}). Metadata stays in sync with
-                both sources.
+                Synthetic images stream from the OpenFake dataset ({OPEN_FAKE_CONSTANTS.synthetic.license}) and Nano-Banana
+                dataset ({OPEN_FAKE_CONSTANTS.nanoBanana.license}); real photos come from the COCO-Caption2017 dataset
+                ({OPEN_FAKE_CONSTANTS.real.license}). Metadata stays in sync with all sources.
               </p>
               <div className="dataset-links">
                 {DATASET_SOURCES.map((source) => (
