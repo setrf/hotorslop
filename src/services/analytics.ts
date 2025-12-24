@@ -304,9 +304,31 @@ export async function fetchAnalyticsDatasetInsights(): Promise<DatasetInsight[]>
   return data.datasets;
 }
 
-export async function fetchAnalyticsModelInsights(): Promise<ModelInsight[]> {
-  const data = await getJson<{ success: true; models: ModelInsight[] }>('/analytics/models');
-  return data.models;
+export type ModelInsightsResponse = {
+  models: ModelInsight[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type ModelInsightsParams = {
+  limit?: number;
+  offset?: number;
+  sortBy?: 'guesses' | 'accuracy' | 'avg_latency' | 'last_guess' | 'modelKey';
+  sortOrder?: 'asc' | 'desc';
+};
+
+export async function fetchAnalyticsModelInsights(params: ModelInsightsParams = {}): Promise<ModelInsightsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.limit) searchParams.set('limit', String(params.limit));
+  if (params.offset) searchParams.set('offset', String(params.offset));
+  if (params.sortBy) searchParams.set('sortBy', params.sortBy);
+  if (params.sortOrder) searchParams.set('sortOrder', params.sortOrder);
+
+  const query = searchParams.toString();
+  const endpoint = `/analytics/models${query ? `?${query}` : ''}`;
+  const data = await getJson<{ success: true; models: ModelInsight[]; total: number; limit: number; offset: number }>(endpoint);
+  return { models: data.models, total: data.total, limit: data.limit, offset: data.offset };
 }
 
 export async function fetchAnalyticsTimeline(range: '7d' | '30d' | '90d' = '30d'): Promise<TimelinePoint[]> {
@@ -314,7 +336,29 @@ export async function fetchAnalyticsTimeline(range: '7d' | '30d' | '90d' = '30d'
   return data.timeline;
 }
 
-export async function fetchAnalyticsPlayers(): Promise<PlayerInsight[]> {
-  const data = await getJson<{ success: true; players: PlayerInsight[] }>('/analytics/players');
-  return data.players;
+export type PlayerInsightsResponse = {
+  players: PlayerInsight[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type PlayerInsightsParams = {
+  limit?: number;
+  offset?: number;
+  sortBy?: 'guesses' | 'sessions' | 'accuracy' | 'avg_latency' | 'last_guess' | 'player';
+  sortOrder?: 'asc' | 'desc';
+};
+
+export async function fetchAnalyticsPlayers(params: PlayerInsightsParams = {}): Promise<PlayerInsightsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.limit) searchParams.set('limit', String(params.limit));
+  if (params.offset) searchParams.set('offset', String(params.offset));
+  if (params.sortBy) searchParams.set('sortBy', params.sortBy);
+  if (params.sortOrder) searchParams.set('sortOrder', params.sortOrder);
+
+  const query = searchParams.toString();
+  const endpoint = `/analytics/players${query ? `?${query}` : ''}`;
+  const data = await getJson<{ success: true; players: PlayerInsight[]; total: number; limit: number; offset: number }>(endpoint);
+  return { players: data.players, total: data.total, limit: data.limit, offset: data.offset };
 }

@@ -10,6 +10,8 @@ import {
   type ModelInsight,
   type TimelinePoint,
   type PlayerInsight,
+  type PlayerInsightsParams,
+  type ModelInsightsParams,
 } from '../services/analytics'
 
 type AdminAnalyticsPanelProps = {
@@ -17,6 +19,11 @@ type AdminAnalyticsPanelProps = {
 }
 
 type TimelineRange = '7d' | '30d' | '90d'
+type PlayerSortColumn = 'guesses' | 'sessions' | 'accuracy' | 'avg_latency' | 'last_guess' | 'player'
+type ModelSortColumn = 'guesses' | 'accuracy' | 'avg_latency' | 'last_guess' | 'modelKey'
+type SortOrder = 'asc' | 'desc'
+
+const PAGE_SIZE = 25
 
 const humaniseRange = (range: TimelineRange) => {
   switch (range) {
@@ -54,37 +61,86 @@ const AdminAnalyticsPanel = ({ onClose }: AdminAnalyticsPanelProps) => {
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null)
   const [datasets, setDatasets] = useState<DatasetInsight[]>([])
   const [models, setModels] = useState<ModelInsight[]>([])
+  const [modelsTotal, setModelsTotal] = useState(0)
+  const [modelsOffset, setModelsOffset] = useState(0)
+  const [modelsSortBy, setModelsSortBy] = useState<ModelSortColumn>('guesses')
+  const [modelsSortOrder, setModelsSortOrder] = useState<SortOrder>('desc')
   const [timelineRange, setTimelineRange] = useState<TimelineRange>('30d')
   const [timeline, setTimeline] = useState<TimelinePoint[]>([])
   const [players, setPlayers] = useState<PlayerInsight[]>([])
+  const [playersTotal, setPlayersTotal] = useState(0)
+  const [playersOffset, setPlayersOffset] = useState(0)
+  const [playersSortBy, setPlayersSortBy] = useState<PlayerSortColumn>('guesses')
+  const [playersSortOrder, setPlayersSortOrder] = useState<SortOrder>('desc')
 
-  const loadAnalytics = useCallback(async () => {
+  const loadAnalytics = useCallback(async (playerParams?: PlayerInsightsParams, modelParams?: ModelInsightsParams) => {
     setIsLoading(true)
     setError(null)
     try {
       const [overviewData, datasetData, modelData, playerData, timelineData] = await Promise.all([
         fetchAnalyticsOverview(),
         fetchAnalyticsDatasetInsights(),
-        fetchAnalyticsModelInsights(),
-        fetchAnalyticsPlayers(),
+        fetchAnalyticsModelInsights({
+          limit: PAGE_SIZE,
+          offset: modelParams?.offset ?? modelsOffset,
+          sortBy: modelParams?.sortBy ?? modelsSortBy,
+          sortOrder: modelParams?.sortOrder ?? modelsSortOrder,
+        }),
+        fetchAnalyticsPlayers({
+          limit: PAGE_SIZE,
+          offset: playerParams?.offset ?? playersOffset,
+          sortBy: playerParams?.sortBy ?? playersSortBy,
+          sortOrder: playerParams?.sortOrder ?? playersSortOrder,
+        }),
         fetchAnalyticsTimeline(timelineRange),
       ])
 
       setOverview(overviewData)
       setDatasets(datasetData)
-      setModels(modelData)
-      setPlayers(playerData)
+      setModels(modelData.models)
+      setModelsTotal(modelData.total)
+      setPlayers(playerData.players)
+      setPlayersTotal(playerData.total)
       setTimeline(timelineData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load analytics')
     } finally {
       setIsLoading(false)
     }
-  }, [timelineRange])
+  }, [timelineRange, playersOffset, playersSortBy, playersSortOrder, modelsOffset, modelsSortBy, modelsSortOrder])
 
   useEffect(() => {
     void loadAnalytics()
   }, [loadAnalytics])
+
+  const handlePlayerSort = (column: PlayerSortColumn) => {
+    const newOrder = playersSortBy === column && playersSortOrder === 'desc' ? 'asc' : 'desc'
+    setPlayersSortBy(column)
+    setPlayersSortOrder(newOrder)
+    setPlayersOffset(0)
+  }
+
+  const handleModelSort = (column: ModelSortColumn) => {
+    const newOrder = modelsSortBy === column && modelsSortOrder === 'desc' ? 'asc' : 'desc'
+    setModelsSortBy(column)
+    setModelsSortOrder(newOrder)
+    setModelsOffset(0)
+  }
+
+  const handlePlayersPage = (direction: 'prev' | 'next') => {
+    const newOffset = direction === 'next' ? playersOffset + PAGE_SIZE : Math.max(0, playersOffset - PAGE_SIZE)
+    setPlayersOffset(newOffset)
+  }
+
+  const handleModelsPage = (direction: 'prev' | 'next') => {
+    const newOffset = direction === 'next' ? modelsOffset + PAGE_SIZE : Math.max(0, modelsOffset - PAGE_SIZE)
+    setModelsOffset(newOffset)
+  }
+
+  const getSortIndicator = (column: string, currentSort: string, order: SortOrder) => {
+    if (column !== currentSort) return ''
+    return order === 'desc' ? ' ▼' : ' ▲'
+  }
 
   const timelineTotals = useMemo(() => {
     if (timeline.length === 0) return { guesses: 0, accuracy: 0 }
@@ -269,66 +325,144 @@ const AdminAnalyticsPanel = ({ onClose }: AdminAnalyticsPanelProps) => {
             </section>
 
             <section className="analytics-section">
-              <h3>Model leaderboard</h3>
+              <div className="section-header">
+                <h3>Model leaderboard</h3>
+                <span className="section-count">{modelsTotal} total</span>
+              </div>
               {models.length === 0 ? (
                 <p className="info-text">Model metadata has not been logged yet.</p>
               ) : (
-                <table className="analytics-table">
-                  <thead>
-                    <tr>
-                      <th>Model</th>
-                      <th>Dataset</th>
-                      <th>Guesses</th>
-                      <th>Accuracy</th>
-                      <th>Avg reaction</th>
-                      <th>Last guess</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {models.map((model) => (
-                      <tr key={`${model.model}-${model.datasetSource}`}>
-                        <td>{model.model}</td>
-                        <td>{model.datasetSource === 'synthetic' ? 'Synthetic' : 'Real'}</td>
-                        <td>{model.guesses.toLocaleString()}</td>
-                        <td>{model.accuracy}%</td>
-                        <td>{model.averageLatencyMs ? `${model.averageLatencyMs.toLocaleString()} ms` : '—'}</td>
-                        <td>{formatTimestamp(model.lastGuessAt)}</td>
+                <>
+                  <table className="analytics-table sortable">
+                    <thead>
+                      <tr>
+                        <th className="sortable-header" onClick={() => handleModelSort('modelKey')}>
+                          Model{getSortIndicator('modelKey', modelsSortBy, modelsSortOrder)}
+                        </th>
+                        <th>Dataset</th>
+                        <th className="sortable-header" onClick={() => handleModelSort('guesses')}>
+                          Guesses{getSortIndicator('guesses', modelsSortBy, modelsSortOrder)}
+                        </th>
+                        <th className="sortable-header" onClick={() => handleModelSort('accuracy')}>
+                          Accuracy{getSortIndicator('accuracy', modelsSortBy, modelsSortOrder)}
+                        </th>
+                        <th className="sortable-header" onClick={() => handleModelSort('avg_latency')}>
+                          Avg reaction{getSortIndicator('avg_latency', modelsSortBy, modelsSortOrder)}
+                        </th>
+                        <th className="sortable-header" onClick={() => handleModelSort('last_guess')}>
+                          Last guess{getSortIndicator('last_guess', modelsSortBy, modelsSortOrder)}
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {models.map((model) => (
+                        <tr key={`${model.model}-${model.datasetSource}`}>
+                          <td>{model.model}</td>
+                          <td>{model.datasetSource === 'synthetic' ? 'Synthetic' : 'Real'}</td>
+                          <td>{model.guesses.toLocaleString()}</td>
+                          <td>{model.accuracy}%</td>
+                          <td>{model.averageLatencyMs ? `${model.averageLatencyMs.toLocaleString()} ms` : '—'}</td>
+                          <td>{formatTimestamp(model.lastGuessAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {modelsTotal > PAGE_SIZE && (
+                    <div className="pagination-controls">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => handleModelsPage('prev')}
+                        disabled={modelsOffset === 0 || isLoading}
+                      >
+                        Previous
+                      </button>
+                      <span className="pagination-info">
+                        {modelsOffset + 1}–{Math.min(modelsOffset + PAGE_SIZE, modelsTotal)} of {modelsTotal}
+                      </span>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => handleModelsPage('next')}
+                        disabled={modelsOffset + PAGE_SIZE >= modelsTotal || isLoading}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </section>
 
             <section className="analytics-section">
-              <h3>Player insights</h3>
+              <div className="section-header">
+                <h3>Player insights</h3>
+                <span className="section-count">{playersTotal} total</span>
+              </div>
               {players.length === 0 ? (
                 <p className="info-text">No opted-in players yet.</p>
               ) : (
-                <table className="analytics-table">
-                  <thead>
-                    <tr>
-                      <th>Player</th>
-                      <th>Sessions</th>
-                      <th>Guesses</th>
-                      <th>Accuracy</th>
-                      <th>Avg reaction</th>
-                      <th>Last guess</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {players.map((player) => (
-                      <tr key={player.player}>
-                        <td>{player.player}</td>
-                        <td>{player.sessions.toLocaleString()}</td>
-                        <td>{player.guesses.toLocaleString()}</td>
-                        <td>{player.accuracy}%</td>
-                        <td>{player.averageLatencyMs ? `${player.averageLatencyMs.toLocaleString()} ms` : '—'}</td>
-                        <td>{formatTimestamp(player.lastGuessAt)}</td>
+                <>
+                  <table className="analytics-table sortable">
+                    <thead>
+                      <tr>
+                        <th className="sortable-header" onClick={() => handlePlayerSort('player')}>
+                          Player{getSortIndicator('player', playersSortBy, playersSortOrder)}
+                        </th>
+                        <th className="sortable-header" onClick={() => handlePlayerSort('sessions')}>
+                          Sessions{getSortIndicator('sessions', playersSortBy, playersSortOrder)}
+                        </th>
+                        <th className="sortable-header" onClick={() => handlePlayerSort('guesses')}>
+                          Guesses{getSortIndicator('guesses', playersSortBy, playersSortOrder)}
+                        </th>
+                        <th className="sortable-header" onClick={() => handlePlayerSort('accuracy')}>
+                          Accuracy{getSortIndicator('accuracy', playersSortBy, playersSortOrder)}
+                        </th>
+                        <th className="sortable-header" onClick={() => handlePlayerSort('avg_latency')}>
+                          Avg reaction{getSortIndicator('avg_latency', playersSortBy, playersSortOrder)}
+                        </th>
+                        <th className="sortable-header" onClick={() => handlePlayerSort('last_guess')}>
+                          Last guess{getSortIndicator('last_guess', playersSortBy, playersSortOrder)}
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {players.map((player) => (
+                        <tr key={player.player}>
+                          <td>{player.player}</td>
+                          <td>{player.sessions.toLocaleString()}</td>
+                          <td>{player.guesses.toLocaleString()}</td>
+                          <td>{player.accuracy}%</td>
+                          <td>{player.averageLatencyMs ? `${player.averageLatencyMs.toLocaleString()} ms` : '—'}</td>
+                          <td>{formatTimestamp(player.lastGuessAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {playersTotal > PAGE_SIZE && (
+                    <div className="pagination-controls">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => handlePlayersPage('prev')}
+                        disabled={playersOffset === 0 || isLoading}
+                      >
+                        Previous
+                      </button>
+                      <span className="pagination-info">
+                        {playersOffset + 1}–{Math.min(playersOffset + PAGE_SIZE, playersTotal)} of {playersTotal}
+                      </span>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => handlePlayersPage('next')}
+                        disabled={playersOffset + PAGE_SIZE >= playersTotal || isLoading}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </section>
           </div>

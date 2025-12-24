@@ -357,9 +357,32 @@ router.get('/datasets', (_req, res) => {
   }
 });
 
-router.get('/models', (_req, res) => {
+router.get('/models', (req, res) => {
   try {
     const db = getDatabase();
+
+    // Pagination params
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit)) || 50, 1), 200);
+    const offset = Math.max(parseInt(String(req.query.offset)) || 0, 0);
+
+    // Sorting params
+    const validSortColumns = ['guesses', 'accuracy', 'avg_latency', 'last_guess', 'modelKey'];
+    const sortBy = validSortColumns.includes(String(req.query.sortBy)) ? String(req.query.sortBy) : 'guesses';
+    const sortOrder = String(req.query.sortOrder) === 'asc' ? 'ASC' : 'DESC';
+
+    // Get total count
+    const countRow = db.prepare(`
+      SELECT COUNT(*) AS total FROM (
+        SELECT LOWER(TRIM(g.model)) AS modelKey, g.dataset_source AS datasetSource
+        FROM analytics_guesses g
+        INNER JOIN analytics_sessions s ON s.id = g.session_id
+        WHERE s.opted_in = 1 AND g.model IS NOT NULL AND TRIM(g.model) <> ''
+        GROUP BY modelKey, datasetSource
+      )
+    `).get() as { total: number } | undefined;
+
+    const total = countRow?.total ?? 0;
+
     const rows = db.prepare(`
       SELECT
         LOWER(TRIM(g.model)) AS modelKey,
@@ -373,9 +396,9 @@ router.get('/models', (_req, res) => {
       INNER JOIN analytics_sessions s ON s.id = g.session_id
       WHERE s.opted_in = 1 AND g.model IS NOT NULL AND TRIM(g.model) <> ''
       GROUP BY modelKey, datasetSource
-      ORDER BY guesses DESC
-      LIMIT 25
-    `).all() as Array<{
+      ORDER BY ${sortBy} ${sortOrder}
+      LIMIT ? OFFSET ?
+    `).all(limit, offset) as Array<{
       modelKey: string | null;
       modelRaw: string | null;
       datasetSource: string;
@@ -387,6 +410,9 @@ router.get('/models', (_req, res) => {
 
     res.json({
       success: true,
+      total,
+      limit,
+      offset,
       models: rows.map((row) => ({
         model: row.modelRaw ?? 'Unknown',
         datasetSource: row.datasetSource,
@@ -439,9 +465,33 @@ router.get('/timeline', (req, res) => {
   }
 });
 
-router.get('/players', (_req, res) => {
+router.get('/players', (req, res) => {
   try {
     const db = getDatabase();
+
+    // Pagination params
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit)) || 25, 1), 200);
+    const offset = Math.max(parseInt(String(req.query.offset)) || 0, 0);
+
+    // Sorting params
+    const validSortColumns = ['guesses', 'sessions', 'accuracy', 'avg_latency', 'last_guess', 'player'];
+    const sortBy = validSortColumns.includes(String(req.query.sortBy)) ? String(req.query.sortBy) : 'guesses';
+    const sortOrder = String(req.query.sortOrder) === 'asc' ? 'ASC' : 'DESC';
+
+    // Get total count
+    const countRow = db.prepare(`
+      SELECT COUNT(*) AS total FROM (
+        SELECT COALESCE(u.username, 'Guest') AS player
+        FROM analytics_sessions s
+        LEFT JOIN users u ON u.id = s.user_id
+        INNER JOIN analytics_guesses g ON g.session_id = s.id
+        WHERE s.opted_in = 1
+        GROUP BY player
+      )
+    `).get() as { total: number } | undefined;
+
+    const total = countRow?.total ?? 0;
+
     const rows = db.prepare(`
       SELECT
         COALESCE(u.username, 'Guest') AS player,
@@ -455,9 +505,9 @@ router.get('/players', (_req, res) => {
       INNER JOIN analytics_guesses g ON g.session_id = s.id
       WHERE s.opted_in = 1
       GROUP BY player
-      ORDER BY guesses DESC
-      LIMIT 25
-    `).all() as Array<{
+      ORDER BY ${sortBy} ${sortOrder}
+      LIMIT ? OFFSET ?
+    `).all(limit, offset) as Array<{
       player: string;
       guesses: number;
       sessions: number;
@@ -468,6 +518,9 @@ router.get('/players', (_req, res) => {
 
     res.json({
       success: true,
+      total,
+      limit,
+      offset,
       players: rows.map((row) => ({
         player: row.player,
         guesses: row.guesses,
