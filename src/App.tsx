@@ -52,15 +52,6 @@ const formatScore = (score: number): string => `${score}`
 const DECK_SIZE = 16
 const AFK_LATENCY_THRESHOLD_MS = 25_000
 
-const LEVEL_BANDS = [
-  { name: 'Scout', minScore: 0 },
-  { name: 'Observer', minScore: 25 },
-  { name: 'Sleuth', minScore: 60 },
-  { name: 'Examiner', minScore: 120 },
-  { name: 'Analyst', minScore: 200 },
-  { name: 'Oracle', minScore: 320 },
-]
-
 const truncate = (value: string, max = 140): string => {
   if (value.length <= max) return value
   return `${value.slice(0, max - 1)}…`
@@ -722,37 +713,6 @@ function App() {
     return { scores: sorted, percentile }
   }, [leaderboard, playerRank, score])
 
-  const levelInfo = useMemo(() => {
-    const bands = LEVEL_BANDS
-    let current = bands[0]
-    let next: (typeof LEVEL_BANDS)[number] | null = null
-    for (let i = 0; i < bands.length; i += 1) {
-      const band = bands[i]
-      if (score >= band.minScore) {
-        current = band
-        next = bands[i + 1] ?? null
-      } else {
-        next = band
-        break
-      }
-    }
-    const lowerBound = current.minScore
-    const nextTarget = next ? next.minScore : null
-    let progress = 1
-    if (nextTarget !== null) {
-      const span = nextTarget - lowerBound || 1
-      progress = Math.min(1, Math.max(0, (score - lowerBound) / span))
-    }
-    return {
-      index: bands.indexOf(current),
-      name: current.name,
-      lowerBound,
-      nextTarget,
-      nextName: next?.name ?? null,
-      progress,
-    }
-  }, [score])
-
   const percentileDisplay = Math.round(percentileData.percentile * 100)
 
   const controlsDisabled = isLocked || isLoadingDeck || !currentCard || overlayActive
@@ -901,31 +861,6 @@ function App() {
                 </div>
               </div>
             </section>
-
-            <section className="session-level">
-              <div className="level-summary">
-                <div>
-                  <span className="stat-label">Current</span>
-                  <span className="stat-value">Level {levelInfo.index + 1} · {levelInfo.name}</span>
-                </div>
-                <div>
-                  <span className="stat-label">Next</span>
-                  <span className="stat-value">
-                    {levelInfo.nextTarget !== null ? `Level ${levelInfo.index + 2} · ${levelInfo.nextName}` : 'Maxed'}
-                  </span>
-                </div>
-              </div>
-              <div className="level-progress">
-                <div className="level-progress-bar">
-                  <div className="level-progress-fill" style={{ width: `${Math.min(levelInfo.progress * 100, 100)}%` }} />
-                </div>
-                {levelInfo.nextTarget !== null && (
-                  <span className="level-progress-counter inline">
-                    {Math.max(0, score - levelInfo.lowerBound)} / {levelInfo.nextTarget - levelInfo.lowerBound}
-                  </span>
-                )}
-              </div>
-            </section>
           </div>
 
           <div className="header-actions">
@@ -1025,7 +960,7 @@ function App() {
               </p>
               <p className="info-text">
                 Swipe, tap, or use arrow keys to make your guess. Correct answers earn points while wrong answers deduct them.
-                Build streaks, climb the leaderboard, and level up your detection skills!
+                Build streaks, climb the leaderboard, and sharpen your detection skills!
               </p>
             </section>
             <section className="info-section">
@@ -1040,14 +975,6 @@ function App() {
               ) : (
                 <p className="info-text">No card loaded yet.</p>
               )}
-            </section>
-            <section className="info-section">
-              <h3>Level list</h3>
-              <ul className="level-list">
-                {LEVEL_BANDS.map((band, index) => (
-                  <li key={band.name}>Level {index + 1} · {band.name} — {index < LEVEL_BANDS.length - 1 ? `${formatScore(band.minScore)} · next at ${formatScore(LEVEL_BANDS[index + 1].minScore)}` : `${formatScore(band.minScore)}+`}</li>
-                ))}
-              </ul>
             </section>
             <section className="info-section">
               <h3>Dataset</h3>
