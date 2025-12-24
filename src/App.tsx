@@ -1053,8 +1053,8 @@ function App() {
               <h3>Dataset</h3>
               <p className="info-text">
                 Synthetic images stream from the OpenFake dataset ({OPEN_FAKE_CONSTANTS.synthetic.license}) and Nano-Banana
-                dataset ({OPEN_FAKE_CONSTANTS.nanoBanana.license}); real photos come from the COCO-Caption2017 dataset
-                ({OPEN_FAKE_CONSTANTS.real.license}). Metadata stays in sync with all sources.
+                dataset ({OPEN_FAKE_CONSTANTS.nanoBanana.license}); real photos come from COCO-Caption2017
+                ({OPEN_FAKE_CONSTANTS.real.license}) and OpenFake ({OPEN_FAKE_CONSTANTS.openFakeReal.license}). Metadata stays in sync with all sources.
               </p>
               <div className="dataset-links">
                 {DATASET_SOURCES.map((source) => (
@@ -1136,8 +1136,10 @@ function App() {
             <p className="leaderboard-license">
               Imagery credit: <a href={OPEN_FAKE_CONSTANTS.synthetic.datasetUrl} target="_blank" rel="noreferrer">OpenFake</a>{' '}
               ({OPEN_FAKE_CONSTANTS.synthetic.license}) ·{' '}
+              <a href={OPEN_FAKE_CONSTANTS.nanoBanana.datasetUrl} target="_blank" rel="noreferrer">Nano-Banana</a>{' '}
+              ({OPEN_FAKE_CONSTANTS.nanoBanana.license}) ·{' '}
               <a href={OPEN_FAKE_CONSTANTS.real.datasetUrl} target="_blank" rel="noreferrer">COCO-Caption2017</a>{' '}
-              ({OPEN_FAKE_CONSTANTS.real.license}). Scores remain on this device only.
+              ({OPEN_FAKE_CONSTANTS.real.license}).
             </p>
           </div>
         </div>
