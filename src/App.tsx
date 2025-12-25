@@ -1002,7 +1002,7 @@ function App() {
               {feedbackMessage.reveal.answer === 'ai' && feedbackMessage.reveal.model && (
                 <span className="feedback-toast-model">{feedbackMessage.reveal.model}</span>
               )}
-              <span className="feedback-toast-prompt">{truncate(feedbackMessage.reveal.prompt, 80)}</span>
+              <span className="feedback-toast-prompt">{truncate(feedbackMessage.reveal.prompt, 140)}</span>
             </div>
           )}
         </div>
