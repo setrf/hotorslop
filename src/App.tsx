@@ -867,9 +867,7 @@ function App() {
                 </div>
                 <p className="swipe-hint">Swipe left for AI, right for real — or tap the buttons / use ← → keys.</p>
               </div>
-              <div style={{ position: 'relative' }}>
-                <ProgressRing current={currentIndex + 1} total={deck.length} />
-                <div
+              <div
                   className={`image-card ${Math.abs(offset) > 20 ? 'swiping' : ''} ${offset < -50 ? 'swiping-left' : ''} ${offset > 50 ? 'swiping-right' : ''}`}
                   {...handlers}
                   style={{
@@ -901,7 +899,6 @@ function App() {
                   </div>
                 </div>
                 <img src={currentCard.src} alt="" draggable={false} />
-                </div>
               </div>
             </>
           ) : (
@@ -1416,51 +1413,6 @@ const PercentileCurve = ({ scores, percentile, displayValue }: PercentileCurvePr
       >
         <polyline points={polylinePoints} />
         <circle cx={markerX} cy={markerY} r={5} />
-      </svg>
-    </div>
-  )
-}
-
-type ProgressRingProps = {
-  current: number
-  total: number
-}
-
-const ProgressRing = ({ current, total }: ProgressRingProps) => {
-  const size = 48
-  const strokeWidth = 4
-  const radius = (size - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  const progress = total > 0 ? current / total : 0
-  const offset = circumference - progress * circumference
-
-  return (
-    <div className="progress-ring-container">
-      <svg className="progress-ring" width={size} height={size}>
-        <circle
-          className="progress-ring-bg"
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-        />
-        <circle
-          className="progress-ring-fill"
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-        />
-        <text
-          className="progress-ring-text"
-          x="50%"
-          y="50%"
-          textAnchor="middle"
-          dominantBaseline="central"
-          transform={`rotate(90 ${size / 2} ${size / 2})`}
-        >
-          {current}/{total}
-        </text>
       </svg>
     </div>
   )

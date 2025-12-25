@@ -3,9 +3,9 @@
 }
 
 :root {
-  /* Typography - distinctive font stack */
-  --font-display: 'Syne', system-ui, sans-serif;
-  --font-body: 'DM Sans', system-ui, sans-serif;
+  /* Typography */
+  --font-display: system-ui, -apple-system, sans-serif;
+  --font-body: system-ui, -apple-system, sans-serif;
 
   font-family: var(--font-body);
   font-synthesis: none;
