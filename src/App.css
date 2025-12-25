@@ -1581,158 +1581,76 @@
   color: #f5f1e8;
 }
 
-/* Reveal Panel Styles */
-.reveal-overlay {
+/* Reveal Toast Styles (non-blocking) */
+.reveal-toast {
   position: fixed;
-  inset: 0;
-  z-index: 35;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: clamp(1.5rem, 6vw, 3.5rem);
-  background: rgba(43, 30, 27, 0.85);
-  backdrop-filter: blur(20px);
-  animation: splashFade 0.25s ease;
-}
-
-.reveal-panel {
-  position: relative;
-  width: min(480px, 92vw);
-  padding: clamp(1.5rem, 4vw, 2.2rem);
-  border-radius: 24px;
+  bottom: clamp(1.5rem, 4vw, 2.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 90vw);
+  padding: 0.9rem 1.2rem;
+  border-radius: 16px;
   background: linear-gradient(170deg, rgba(95, 82, 79, 0.96), rgba(67, 54, 51, 0.96));
-  border: 2px solid rgba(255, 241, 225, 0.15);
-  box-shadow: 0 30px 70px rgba(29, 19, 15, 0.5);
-  display: flex;
-  flex-direction: column;
-  gap: 1.2rem;
-  animation: revealSlideUp 0.3s ease;
+  border: 1px solid rgba(255, 241, 225, 0.15);
+  box-shadow: 0 16px 40px rgba(29, 19, 15, 0.5);
+  z-index: 35;
+  animation: revealToastSlideUp 0.3s ease;
+  pointer-events: none;
 }
 
-.reveal-panel.correct {
-  border-color: rgba(61, 169, 51, 0.5);
-  box-shadow: 0 30px 70px rgba(29, 19, 15, 0.5), 0 0 40px rgba(61, 169, 51, 0.15);
+.reveal-toast.correct {
+  border-left: 3px solid #3DA933;
 }
 
-.reveal-panel.incorrect {
-  border-color: rgba(221, 14, 21, 0.4);
-  box-shadow: 0 30px 70px rgba(29, 19, 15, 0.5), 0 0 40px rgba(221, 14, 21, 0.1);
+.reveal-toast.incorrect {
+  border-left: 3px solid #DD0E15;
 }
 
-@keyframes revealSlideUp {
+@keyframes revealToastSlideUp {
   from {
     opacity: 0;
-    transform: translateY(20px) scale(0.96);
+    transform: translateX(-50%) translateY(20px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateX(-50%) translateY(0);
   }
 }
 
-.reveal-header {
+.reveal-toast-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.4rem;
 }
 
-.reveal-badge {
-  padding: 0.5rem 1rem;
-  border-radius: 12px;
-  font-weight: 700;
-  font-size: 0.9rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.reveal-badge.correct {
-  background: linear-gradient(135deg, #3DA933, #2d8825);
-  color: #f5f1e8;
-}
-
-.reveal-badge.incorrect {
-  background: linear-gradient(135deg, #DD0E15, #b50c12);
-  color: #f5f1e8;
-}
-
-.reveal-answer {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.reveal-model,
-.reveal-prompt,
-.reveal-credit {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.reveal-label {
-  font-size: 0.72rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
-.reveal-value {
-  font-size: 0.95rem;
-  line-height: 1.55;
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
-.reveal-model .reveal-value {
-  font-weight: 600;
-  color: var(--color-text-primary);
-  font-size: 1rem;
-}
-
-.reveal-prompt .reveal-value {
-  max-height: 8em;
-  overflow-y: auto;
-  padding-right: 0.5rem;
-}
-
-.reveal-link {
-  color: #8faacc;
-  text-decoration: none;
-  font-size: 0.9rem;
-  transition: color 0.2s ease;
-}
-
-.reveal-link:hover {
-  color: #b3cce6;
-  text-decoration: underline;
-}
-
-.reveal-continue {
-  margin-top: 0.5rem;
-  padding: 0.9rem 1.8rem;
-  border-radius: 14px;
-  border: none;
-  background: linear-gradient(135deg, #ff6a1f, var(--color-primary));
-  color: #2c1603;
-  font-size: 1rem;
+.reveal-toast-type {
+  font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 12px 28px rgba(65, 28, 0, 0.4);
+  color: var(--color-text-primary);
 }
 
-.reveal-continue:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 34px rgba(74, 31, 0, 0.5);
+.reveal-toast-model {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #ff9c66;
+  padding: 0.15rem 0.5rem;
+  background: rgba(255, 156, 102, 0.15);
+  border-radius: 6px;
 }
 
-.reveal-continue:focus-visible {
-  outline: 2px solid rgba(255, 235, 215, 0.7);
-  outline-offset: 2px;
+.reveal-toast-prompt {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 /* Model Stats in Info Panel */

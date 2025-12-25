@@ -58,7 +58,7 @@ const loadCookiePreference = (): CookiePreference | null => {
 
 const formatScore = (score: number): string => `${score}`
 
-const DECK_SIZE = 16
+const DECK_SIZE = 8
 const AFK_LATENCY_THRESHOLD_MS = 25_000
 
 const truncate = (value: string, max = 140): string => {
@@ -122,6 +122,8 @@ function App() {
   const [showShareModal, setShowShareModal] = useState(false)
   const [deckResults, setDeckResults] = useState<{ correct: number; total: number } | null>(null)
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle')
+  const [revealToast, setRevealToast] = useState<RevealInfo | null>(null)
+  const revealToastTimeoutRef = useRef<number | null>(null)
   const [cookiePreference, setCookiePreference] = useState<CookiePreference | null>(() => loadCookiePreference())
   const showCookieBanner = cookiePreference === null
 
@@ -181,7 +183,6 @@ function App() {
   const [streak, setStreak] = useState(0)
   const [perfectDeckStreak, setPerfectDeckStreak] = useState(0)
   const [isLocked, setIsLocked] = useState(false)
-  const [revealInfo, setRevealInfo] = useState<RevealInfo | null>(null)
   const [offset, setOffset] = useState(0)
   const [rotation, setRotation] = useState(0)
   const [activeGuess, setActiveGuess] = useState<GuessType | null>(null)
@@ -345,10 +346,11 @@ function App() {
 
   useEffect(() => {
     if (deck.length === 0) return
-    if (currentIndex >= deck.length - 4) {
+    // With smaller deck (8), prefetch earlier (at card 2+)
+    if (currentIndex >= 2) {
       void prefetchDeck()
     }
-  }, [currentIndex, deck, prefetchDeck])
+  }, [currentIndex, deck.length, prefetchDeck])
 
   useEffect(() => {
     if (!currentCard) return
@@ -546,8 +548,11 @@ function App() {
         type: correct ? 'success' : 'error',
       })
 
-      // Show reveal panel with image details
-      setRevealInfo({
+      // Show reveal toast with image details (non-blocking)
+      if (revealToastTimeoutRef.current) {
+        window.clearTimeout(revealToastTimeoutRef.current)
+      }
+      setRevealToast({
         correct,
         answer: currentCard.answer,
         model: currentCard.model ?? null,
@@ -565,6 +570,22 @@ function App() {
         resultTimeoutRef.current = null
       }, 2200)
 
+      // Auto-advance to next card after brief delay
+      if (cardAdvanceTimeoutRef.current) {
+        window.clearTimeout(cardAdvanceTimeoutRef.current)
+      }
+      cardAdvanceTimeoutRef.current = window.setTimeout(() => {
+        advanceCard()
+        setIsLocked(false)
+        cardAdvanceTimeoutRef.current = null
+      }, 600)
+
+      // Clear reveal toast after longer delay
+      revealToastTimeoutRef.current = window.setTimeout(() => {
+        setRevealToast(null)
+        revealToastTimeoutRef.current = null
+      }, 4500)
+
       // Refresh leaderboard immediately after each guess to show updated rankings
       loadGlobalLeaderboard().catch(error => {
         console.warn('Failed to refresh leaderboard:', error)
@@ -574,6 +595,7 @@ function App() {
       advanceCard,
       currentCard,
       isLocked,
+      loadGlobalLeaderboard,
       perfectDeckStreak,
       playerName,
       score,
@@ -582,12 +604,6 @@ function App() {
       streak,
     ]
   )
-
-  const handleContinue = useCallback(() => {
-    setRevealInfo(null)
-    advanceCard()
-    setIsLocked(false)
-  }, [advanceCard])
 
   const triggerGuess = useCallback(
     (type: GuessType) => {
@@ -636,6 +652,10 @@ function App() {
       if (cardAdvanceTimeoutRef.current && typeof window !== 'undefined') {
         window.clearTimeout(cardAdvanceTimeoutRef.current)
         cardAdvanceTimeoutRef.current = null
+      }
+      if (revealToastTimeoutRef.current && typeof window !== 'undefined') {
+        window.clearTimeout(revealToastTimeoutRef.current)
+        revealToastTimeoutRef.current = null
       }
     }
   }, [])
@@ -996,51 +1016,17 @@ function App() {
         </div>
       )}
 
-      {revealInfo && (
-        <div className="reveal-overlay" role="dialog" aria-modal="true">
-          <div className={`reveal-panel ${revealInfo.correct ? 'correct' : 'incorrect'}`}>
-            <div className="reveal-header">
-              <span className={`reveal-badge ${revealInfo.correct ? 'correct' : 'incorrect'}`}>
-                {revealInfo.correct ? '✓ Correct!' : '✗ Wrong'}
-              </span>
-              <span className="reveal-answer">
-                {revealInfo.answer === 'ai' ? '🤖 AI Generated' : '📸 Real Photo'}
-              </span>
-            </div>
-
-            {revealInfo.answer === 'ai' && revealInfo.model && (
-              <div className="reveal-model">
-                <span className="reveal-label">Model</span>
-                <span className="reveal-value">{revealInfo.model}</span>
-              </div>
+      {revealToast && (
+        <div className={`reveal-toast ${revealToast.correct ? 'correct' : 'incorrect'}`} role="status">
+          <div className="reveal-toast-header">
+            <span className="reveal-toast-type">
+              {revealToast.answer === 'ai' ? '🤖 AI' : '📸 Real'}
+            </span>
+            {revealToast.answer === 'ai' && revealToast.model && (
+              <span className="reveal-toast-model">{revealToast.model}</span>
             )}
-
-            <div className="reveal-prompt">
-              <span className="reveal-label">{revealInfo.answer === 'ai' ? 'Prompt' : 'Caption'}</span>
-              <p className="reveal-value">{revealInfo.prompt}</p>
-            </div>
-
-            <div className="reveal-credit">
-              <span className="reveal-label">Source</span>
-              <a
-                href={revealInfo.datasetUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="reveal-link"
-              >
-                {revealInfo.credit}
-              </a>
-            </div>
-
-            <button
-              type="button"
-              className="reveal-continue"
-              onClick={handleContinue}
-              autoFocus
-            >
-              Continue →
-            </button>
           </div>
+          <p className="reveal-toast-prompt">{truncate(revealToast.prompt, 120)}</p>
         </div>
       )}
 
