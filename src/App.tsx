@@ -850,7 +850,7 @@ function App() {
               {isLoadingDeck ? (
                 <>
                   <span className="loading-pip" />
-                  <p>Streaming fresh heat from OpenFake… 🔥</p>
+                  <p>Loading images...</p>
                 </>
               ) : deckError ? (
                 <>
