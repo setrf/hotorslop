@@ -173,9 +173,15 @@ function App() {
   const [offset, setOffset] = useState(0)
   const [rotation, setRotation] = useState(0)
   const [activeGuess, setActiveGuess] = useState<GuessType | null>(null)
+  const [screenFlash, setScreenFlash] = useState<'success' | 'error' | null>(null)
+  const [scorePop, setScorePop] = useState<'up' | 'down' | null>(null)
+  const [showCelebration, setShowCelebration] = useState(false)
   const resultTimeoutRef = useRef<number | null>(null)
   const cardAdvanceTimeoutRef = useRef<number | null>(null)
   const activeGuessTimeoutRef = useRef<number | null>(null)
+  const flashTimeoutRef = useRef<number | null>(null)
+  const scorePopTimeoutRef = useRef<number | null>(null)
+  const celebrationTimeoutRef = useRef<number | null>(null)
   const nextDeckRef = useRef<HotOrSlopImage[] | null>(null)
   const isPrefetchingRef = useRef(false)
   const cardRevealTimeRef = useRef<number>(nowMs())
@@ -370,6 +376,9 @@ function App() {
   useEffect(() => {
     return () => {
       if (resultTimeoutRef.current) window.clearTimeout(resultTimeoutRef.current)
+      if (flashTimeoutRef.current) window.clearTimeout(flashTimeoutRef.current)
+      if (scorePopTimeoutRef.current) window.clearTimeout(scorePopTimeoutRef.current)
+      if (celebrationTimeoutRef.current) window.clearTimeout(celebrationTimeoutRef.current)
       void analytics.flushNow()
     }
   }, [])
@@ -503,17 +512,41 @@ function App() {
       setStats({ total: nextTotal, correct: nextCorrect })
       setStreak(nextStreak)
 
+      // Trigger visual feedback effects
+      if (flashTimeoutRef.current) window.clearTimeout(flashTimeoutRef.current)
+      if (scorePopTimeoutRef.current) window.clearTimeout(scorePopTimeoutRef.current)
+
+      setScreenFlash(correct ? 'success' : 'error')
+      setScorePop(correct ? 'up' : 'down')
+
+      flashTimeoutRef.current = window.setTimeout(() => {
+        setScreenFlash(null)
+        flashTimeoutRef.current = null
+      }, 500)
+
+      scorePopTimeoutRef.current = window.setTimeout(() => {
+        setScorePop(null)
+        scorePopTimeoutRef.current = null
+      }, 400)
+
       // Track deck-level stats for share feature
       deckStatsRef.current.total += 1
       if (correct) {
         deckStatsRef.current.correct += 1
       }
 
-      // Track perfect deck streaks
+      // Track perfect deck streaks and trigger celebration
       if (correct && nextTotal > 0 && nextTotal % DECK_SIZE === 0) {
         const deckAccuracy = nextCorrect / nextTotal
         if (deckAccuracy === 1.0) {
           setPerfectDeckStreak(prev => prev + 1)
+          // Trigger celebration
+          if (celebrationTimeoutRef.current) window.clearTimeout(celebrationTimeoutRef.current)
+          setShowCelebration(true)
+          celebrationTimeoutRef.current = window.setTimeout(() => {
+            setShowCelebration(false)
+            celebrationTimeoutRef.current = null
+          }, 2000)
         }
       }
 
@@ -834,17 +867,19 @@ function App() {
                 </div>
                 <p className="swipe-hint">Swipe left for AI, right for real — or tap the buttons / use ← → keys.</p>
               </div>
-              <div
-                className="image-card"
-                {...handlers}
-                style={{
-                  transform: `translateX(${offset}px) rotate(${rotation}deg)`,
-                  transition: offset === 0 ? 'transform 0.3s ease-out' : 'none',
-                }}
-                role="img"
-                aria-label={`${truncate(currentCard.prompt, 160)} — guess if it is real or AI generated`}
-              >
-                {/* Swipe direction indicators */}
+              <div style={{ position: 'relative' }}>
+                <ProgressRing current={currentIndex + 1} total={deck.length} />
+                <div
+                  className={`image-card ${Math.abs(offset) > 20 ? 'swiping' : ''} ${offset < -50 ? 'swiping-left' : ''} ${offset > 50 ? 'swiping-right' : ''}`}
+                  {...handlers}
+                  style={{
+                    transform: `translateX(${offset}px) rotate(${rotation}deg)`,
+                    transition: offset === 0 ? 'transform 0.3s ease-out' : 'none',
+                  }}
+                  role="img"
+                  aria-label={`${truncate(currentCard.prompt, 160)} — guess if it is real or AI generated`}
+                >
+                  {/* Swipe direction indicators */}
                 <div
                   className="swipe-indicator swipe-indicator-left"
                   style={{
@@ -866,15 +901,13 @@ function App() {
                   </div>
                 </div>
                 <img src={currentCard.src} alt="" draggable={false} />
+                </div>
               </div>
             </>
           ) : (
             <div className="card-placeholder">
               {isLoadingDeck ? (
-                <>
-                  <span className="loading-pip" />
-                  <p>Loading images...</p>
-                </>
+                <div className="skeleton-card" aria-label="Loading image..." />
               ) : deckError ? (
                 <>
                   <p>{deckError} 😅</p>
@@ -899,7 +932,9 @@ function App() {
               <div className="stat-grid">
                 <div className="stat-card">
                   <span className="stat-label">Score</span>
-                  <span className="stat-value">{formatScore(score)}</span>
+                  <span className={`stat-value ${scorePop ? `pop pop-${scorePop}` : ''}`}>
+                    {formatScore(score)}
+                  </span>
                 </div>
                 <div className="stat-card">
                   <span className="stat-label">Rounds</span>
@@ -909,9 +944,16 @@ function App() {
                   <span className="stat-label">Accuracy</span>
                   <span className="stat-value">{accuracyDisplay}</span>
                 </div>
-                <div className="stat-card">
+                <div className={`stat-card ${streak >= 3 ? 'streak-active' : ''}`}>
                   <span className="stat-label">Streak</span>
-                  <span className="stat-value">{streak}</span>
+                  <span className="stat-value">
+                    {streak >= 3 ? (
+                      <span className="streak-fire">
+                        <span className="streak-fire-icon">🔥</span>
+                        {streak}
+                      </span>
+                    ) : streak}
+                  </span>
                 </div>
               </div>
             </section>
@@ -1170,6 +1212,21 @@ function App() {
         </div>
       )}
 
+      {/* Screen flash effect */}
+      {screenFlash && (
+        <div className={`screen-flash ${screenFlash}`} aria-hidden="true" />
+      )}
+
+      {/* Perfect deck celebration */}
+      {showCelebration && (
+        <div className="perfect-deck-celebration" aria-hidden="true">
+          <div className="celebration-content">
+            <span className="celebration-emoji">👑</span>
+            <span className="celebration-text">PERFECT DECK!</span>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
@@ -1359,6 +1416,51 @@ const PercentileCurve = ({ scores, percentile, displayValue }: PercentileCurvePr
       >
         <polyline points={polylinePoints} />
         <circle cx={markerX} cy={markerY} r={5} />
+      </svg>
+    </div>
+  )
+}
+
+type ProgressRingProps = {
+  current: number
+  total: number
+}
+
+const ProgressRing = ({ current, total }: ProgressRingProps) => {
+  const size = 48
+  const strokeWidth = 4
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const progress = total > 0 ? current / total : 0
+  const offset = circumference - progress * circumference
+
+  return (
+    <div className="progress-ring-container">
+      <svg className="progress-ring" width={size} height={size}>
+        <circle
+          className="progress-ring-bg"
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+        />
+        <circle
+          className="progress-ring-fill"
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+        />
+        <text
+          className="progress-ring-text"
+          x="50%"
+          y="50%"
+          textAnchor="middle"
+          dominantBaseline="central"
+          transform={`rotate(90 ${size / 2} ${size / 2})`}
+        >
+          {current}/{total}
+        </text>
       </svg>
     </div>
   )

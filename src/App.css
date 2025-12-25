@@ -157,10 +157,23 @@
 
 .brand-heading {
   margin: 0;
-  font-size: clamp(1.6rem, 4.5vw, 2.6rem);
-  letter-spacing: 0.18em;
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  font-weight: 700;
+  font-weight: 800;
+  background: linear-gradient(135deg, #ff6a1f 0%, #ff4e00 35%, #ffd700 70%, #ff4e00 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShift 4s ease-in-out infinite;
+  text-shadow: none;
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .brand-subtitle {
@@ -450,12 +463,13 @@
 
 .guess-button {
   position: relative;
-  padding: 0.85rem 1.35rem;
+  padding: 0.9rem 1.4rem;
   border-radius: 16px;
   border: 1px solid transparent;
-  font-size: 0.82rem;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-text-primary);
   cursor: pointer;
@@ -466,13 +480,15 @@
 }
 
 .guess-button.ai {
-  background: linear-gradient(135deg, #ff6a1f, var(--color-primary));
-  color: #2c1603;
+  background: linear-gradient(135deg, #ff7a30, var(--color-hot));
+  color: #1a0800;
+  box-shadow: 0 8px 24px var(--color-hot-glow);
 }
 
 .guess-button.real {
-  background: linear-gradient(135deg, #8faacc, var(--color-secondary));
-  color: #081a27;
+  background: linear-gradient(135deg, #6ab8ff, var(--color-cool));
+  color: #001830;
+  box-shadow: 0 8px 24px var(--color-cool-glow);
 }
 
 .guess-button:disabled {
@@ -513,9 +529,12 @@
 
 .swipe-hint {
   margin: 0;
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
   color: var(--color-text-muted);
+  padding: 0.6rem 1rem;
+  text-align: center;
+  line-height: 1.5;
 }
 
 .panel-layer {
@@ -570,7 +589,10 @@
 
 .panel-heading h2 {
   margin: 0;
-  font-size: 1.2rem;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .info-section {
@@ -690,11 +712,31 @@
 }
 
 .stat-value {
-  font-size: 1.35rem;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--color-text-primary);
   letter-spacing: -0.01em;
   font-feature-settings: 'tnum' 1;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease;
+}
+
+.stat-value.pop {
+  animation: scorePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.stat-value.pop-up {
+  color: var(--color-accent);
+}
+
+.stat-value.pop-down {
+  color: var(--color-danger);
+}
+
+@keyframes scorePop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  100% { transform: scale(1); }
 }
 
 .secondary-button {
@@ -1657,4 +1699,189 @@
   font-weight: 600;
   color: #ff9c66;
   white-space: nowrap;
+}
+
+/* Screen flash effect on correct/wrong */
+.screen-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+}
+
+.screen-flash.success {
+  background: radial-gradient(circle at center, rgba(0, 214, 143, 0.35) 0%, transparent 70%);
+  animation: flashPulse 0.5s ease-out forwards;
+}
+
+.screen-flash.error {
+  background: radial-gradient(circle at center, rgba(255, 78, 0, 0.3) 0%, transparent 70%);
+  animation: flashPulse 0.5s ease-out forwards;
+}
+
+@keyframes flashPulse {
+  0% { opacity: 0; transform: scale(0.8); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+/* Streak indicator glow */
+.stat-card.streak-active {
+  border-color: rgba(255, 78, 0, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 241, 225, 0.08),
+    0 8px 18px rgba(26, 18, 14, 0.28),
+    var(--glow-streak);
+  animation: streakPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes streakPulse {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 241, 225, 0.08), 0 8px 18px rgba(26, 18, 14, 0.28), 0 0 20px rgba(255, 78, 0, 0.4); }
+  50% { box-shadow: inset 0 1px 0 rgba(255, 241, 225, 0.08), 0 8px 18px rgba(26, 18, 14, 0.28), 0 0 35px rgba(255, 78, 0, 0.6); }
+}
+
+/* Enhanced swipe card shadow during drag */
+.image-card.swiping {
+  box-shadow: 0 30px 60px rgba(33, 23, 18, 0.55), 0 15px 30px rgba(0, 0, 0, 0.3);
+}
+
+.image-card.swiping-left {
+  box-shadow: -20px 20px 50px var(--color-hot-glow), 0 30px 60px rgba(33, 23, 18, 0.55);
+}
+
+.image-card.swiping-right {
+  box-shadow: 20px 20px 50px var(--color-cool-glow), 0 30px 60px rgba(33, 23, 18, 0.55);
+}
+
+/* Streak fire indicator */
+.streak-fire {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  animation: fireFlicker 0.5s ease-in-out infinite alternate;
+}
+
+.streak-fire-icon {
+  font-size: 1.1em;
+  filter: drop-shadow(0 0 4px rgba(255, 100, 0, 0.6));
+}
+
+@keyframes fireFlicker {
+  0% { transform: scale(1) rotate(-2deg); }
+  100% { transform: scale(1.05) rotate(2deg); }
+}
+
+/* Perfect deck celebration */
+.perfect-deck-celebration {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.celebration-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  animation: celebrationBounce 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.celebration-emoji {
+  font-size: 4rem;
+  animation: celebrationSpin 0.8s ease-out;
+}
+
+.celebration-text {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #ffd700;
+  text-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+}
+
+@keyframes celebrationBounce {
+  0% { opacity: 0; transform: scale(0.5) translateY(20px); }
+  50% { opacity: 1; transform: scale(1.1) translateY(-10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes celebrationSpin {
+  0% { transform: rotate(-30deg) scale(0.5); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+/* Progress ring around card */
+.progress-ring-container {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 48px;
+  height: 48px;
+  z-index: 5;
+}
+
+.progress-ring {
+  transform: rotate(-90deg);
+}
+
+.progress-ring-bg {
+  fill: none;
+  stroke: rgba(255, 241, 225, 0.15);
+  stroke-width: 4;
+}
+
+.progress-ring-fill {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.35s ease;
+}
+
+.progress-ring-text {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  fill: var(--color-text-primary);
+}
+
+/* Skeleton loading card */
+.skeleton-card {
+  width: 100%;
+  height: clamp(320px, 60vh, 520px);
+  border-radius: 24px;
+  background: linear-gradient(150deg, rgba(95, 82, 79, 0.92), rgba(67, 54, 51, 0.92));
+  border: 1px solid rgba(255, 241, 225, 0.14);
+  overflow: hidden;
+  position: relative;
+}
+
+.skeleton-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 241, 225, 0.08) 50%, transparent 100%);
+  animation: skeletonShimmer 1.5s infinite;
+}
+
+@keyframes skeletonShimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Mobile responsive stat grid - 2 columns on small screens */
+@media (max-width: 400px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-card {
+    min-height: 75px;
+    padding: 0.7rem 0.9rem;
+  }
 }

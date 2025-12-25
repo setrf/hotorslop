@@ -1,30 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap');
-
 * {
   box-sizing: border-box;
 }
 
 :root {
-  font-family: 'EB Garamond', Garamond, 'Apple Garamond', 'Baskerville', 'Times New Roman', serif;
+  /* Typography - distinctive font stack */
+  --font-display: 'Syne', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+
+  font-family: var(--font-body);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: #f5f1e8;
   background-color: #433633;
-  --color-bg: #433633;
-  --color-surface: #56494e;
-  --color-surface-soft: #5f524f;
+
+  /* Colors - enhanced with tension */
+  --color-bg: #2d2226;
+  --color-surface: #3d3238;
+  --color-surface-soft: #4a3e44;
   --color-surface-alt: #6c8ead;
   --color-border: rgba(255, 241, 225, 0.16);
-  --color-shadow: rgba(18, 10, 8, 0.45);
+  --color-shadow: rgba(18, 10, 8, 0.55);
   --color-text-primary: #f5f1e8;
-  --color-text-secondary: rgba(245, 241, 232, 0.75);
-  --color-text-muted: rgba(245, 241, 232, 0.6);
+  --color-text-secondary: rgba(245, 241, 232, 0.78);
+  --color-text-muted: rgba(245, 241, 232, 0.55);
+
+  /* Hot vs Cool color tension */
+  --color-hot: #ff4e00;
+  --color-hot-glow: rgba(255, 78, 0, 0.4);
+  --color-cool: #4a9eff;
+  --color-cool-glow: rgba(74, 158, 255, 0.35);
   --color-primary: #ff4e00;
-  --color-secondary: #6c8ead;
-  --color-accent: #588157;
+  --color-secondary: #4a9eff;
+  --color-accent: #00d68f;
   --color-danger: #ff4e00;
+
+  /* Streak glow effects */
+  --glow-success: 0 0 20px rgba(0, 214, 143, 0.5), 0 0 40px rgba(0, 214, 143, 0.25);
+  --glow-streak: 0 0 30px rgba(255, 78, 0, 0.6), 0 0 60px rgba(255, 78, 0, 0.3);
 }
 
 a {
@@ -43,6 +57,18 @@ body {
   display: flex;
   justify-content: center;
   color: var(--color-text-primary);
+  position: relative;
+}
+
+/* Subtle noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  z-index: 0;
 }
 
 #root {
