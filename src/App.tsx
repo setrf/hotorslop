@@ -5,10 +5,19 @@ import { useSwipeable } from 'react-swipeable'
 import './App.css'
 import { fetchOpenFakeDeck, OPEN_FAKE_CONSTANTS, type HotOrSlopImage } from './services/openfake'
 
-import { analytics } from './services/analytics'
+import { analytics, fetchPublicModelStats, type PublicModelStat } from './services/analytics'
 import AdminAnalyticsPanel from './components/AdminAnalyticsPanel'
 
 type GuessType = 'ai' | 'real'
+
+type RevealInfo = {
+  correct: boolean
+  answer: GuessType
+  model: string | null
+  prompt: string
+  credit: string
+  datasetUrl: string
+}
 
 import { getLeaderboard, saveGuess } from './services/api'
 type LeaderboardEntry = {
@@ -109,6 +118,10 @@ function App() {
   const [isInfoOpen, setIsInfoOpen] = useState(false)
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false)
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false)
+  const [modelStats, setModelStats] = useState<PublicModelStat[]>([])
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [deckResults, setDeckResults] = useState<{ correct: number; total: number } | null>(null)
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle')
   const [cookiePreference, setCookiePreference] = useState<CookiePreference | null>(() => loadCookiePreference())
   const showCookieBanner = cookiePreference === null
 
@@ -168,6 +181,7 @@ function App() {
   const [streak, setStreak] = useState(0)
   const [perfectDeckStreak, setPerfectDeckStreak] = useState(0)
   const [isLocked, setIsLocked] = useState(false)
+  const [revealInfo, setRevealInfo] = useState<RevealInfo | null>(null)
   const [offset, setOffset] = useState(0)
   const [rotation, setRotation] = useState(0)
   const [activeGuess, setActiveGuess] = useState<GuessType | null>(null)
@@ -180,6 +194,7 @@ function App() {
   const currentDeckIdRef = useRef<string>(generateDeckId())
   const nextDeckIdRef = useRef<string | null>(null)
   const hasLoadedInitialDeckRef = useRef(false)
+  const deckStatsRef = useRef({ correct: 0, total: 0 })
 
   const handlers = useSwipeable({
     onSwiping: (eventData) => {
@@ -279,6 +294,11 @@ function App() {
   useEffect(() => {
     analytics.init({ deckSize: DECK_SIZE })
     loadGlobalLeaderboard()
+
+    // Fetch public model stats for info panel
+    fetchPublicModelStats()
+      .then(setModelStats)
+      .catch((error) => console.warn('Failed to load model stats:', error))
   }, [loadGlobalLeaderboard])
 
   useEffect(() => {
@@ -386,13 +406,20 @@ function App() {
     setCurrentIndex((prev) => {
       const next = prev + 1
       if (next >= deck.length) {
+        // Deck completed - save results and show share modal
+        const results = { ...deckStatsRef.current }
+        if (results.total > 0) {
+          setDeckResults(results)
+          setShareStatus('idle')
+          setShowShareModal(true)
+        }
+        // Reset deck stats for next deck
+        deckStatsRef.current = { correct: 0, total: 0 }
         void loadDeck(true)
         return 0
       }
       return next
     })
-    window.setTimeout(() => {
-    }, 250)
   }, [deck.length, loadDeck])
 
   const handleGuess = useCallback(
@@ -471,6 +498,12 @@ function App() {
       setStats({ total: nextTotal, correct: nextCorrect })
       setStreak(nextStreak)
 
+      // Track deck-level stats for share feature
+      deckStatsRef.current.total += 1
+      if (correct) {
+        deckStatsRef.current.correct += 1
+      }
+
       // Track perfect deck streaks
       if (correct && nextTotal > 0 && nextTotal % DECK_SIZE === 0) {
         const deckAccuracy = nextCorrect / nextTotal
@@ -513,18 +546,19 @@ function App() {
         type: correct ? 'success' : 'error',
       })
 
+      // Show reveal panel with image details
+      setRevealInfo({
+        correct,
+        answer: currentCard.answer,
+        model: currentCard.model ?? null,
+        prompt: currentCard.prompt,
+        credit: currentCard.credit,
+        datasetUrl: currentCard.datasetUrl,
+      })
+
       if (resultTimeoutRef.current) {
         window.clearTimeout(resultTimeoutRef.current)
       }
-      if (cardAdvanceTimeoutRef.current) {
-        window.clearTimeout(cardAdvanceTimeoutRef.current)
-      }
-
-      cardAdvanceTimeoutRef.current = window.setTimeout(() => {
-        advanceCard()
-        setIsLocked(false)
-        cardAdvanceTimeoutRef.current = null
-      }, 420)
 
       resultTimeoutRef.current = window.setTimeout(() => {
         setFeedbackMessage(null)
@@ -548,6 +582,12 @@ function App() {
       streak,
     ]
   )
+
+  const handleContinue = useCallback(() => {
+    setRevealInfo(null)
+    advanceCard()
+    setIsLocked(false)
+  }, [advanceCard])
 
   const triggerGuess = useCallback(
     (type: GuessType) => {
@@ -659,6 +699,44 @@ function App() {
 
   const handleDeclineCookies = useCallback(() => {
     setCookiePreference('declined')
+  }, [])
+
+  const handleShare = useCallback(async () => {
+    if (!deckResults) return
+
+    const accuracy = Math.round((deckResults.correct / deckResults.total) * 100)
+    const emoji = accuracy === 100 ? '🏆' : accuracy >= 75 ? '🔥' : accuracy >= 50 ? '👍' : '😅'
+    const shareText = `${emoji} Hot or Slop - I got ${deckResults.correct}/${deckResults.total} (${accuracy}%) spotting AI-generated images!\n\nCan you beat my score? Play at:`
+    const shareUrl = 'https://hotorslop.mertgulsun.com'
+
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+      try {
+        await navigator.share({
+          title: 'Hot or Slop Results',
+          text: shareText,
+          url: shareUrl,
+        })
+        setShareStatus('shared')
+        return
+      } catch (error) {
+        // User cancelled or share failed, fall back to clipboard
+        if ((error as Error).name === 'AbortError') return
+      }
+    }
+
+    // Fallback to clipboard
+    try {
+      await navigator.clipboard.writeText(`${shareText} ${shareUrl}`)
+      setShareStatus('copied')
+    } catch {
+      console.warn('Failed to copy to clipboard')
+    }
+  }, [deckResults])
+
+  const handleCloseShareModal = useCallback(() => {
+    setShowShareModal(false)
+    setDeckResults(null)
+    setShareStatus('idle')
   }, [])
 
   const handleInfoBackdropClick = useCallback(
@@ -918,6 +996,96 @@ function App() {
         </div>
       )}
 
+      {revealInfo && (
+        <div className="reveal-overlay" role="dialog" aria-modal="true">
+          <div className={`reveal-panel ${revealInfo.correct ? 'correct' : 'incorrect'}`}>
+            <div className="reveal-header">
+              <span className={`reveal-badge ${revealInfo.correct ? 'correct' : 'incorrect'}`}>
+                {revealInfo.correct ? '✓ Correct!' : '✗ Wrong'}
+              </span>
+              <span className="reveal-answer">
+                {revealInfo.answer === 'ai' ? '🤖 AI Generated' : '📸 Real Photo'}
+              </span>
+            </div>
+
+            {revealInfo.answer === 'ai' && revealInfo.model && (
+              <div className="reveal-model">
+                <span className="reveal-label">Model</span>
+                <span className="reveal-value">{revealInfo.model}</span>
+              </div>
+            )}
+
+            <div className="reveal-prompt">
+              <span className="reveal-label">{revealInfo.answer === 'ai' ? 'Prompt' : 'Caption'}</span>
+              <p className="reveal-value">{revealInfo.prompt}</p>
+            </div>
+
+            <div className="reveal-credit">
+              <span className="reveal-label">Source</span>
+              <a
+                href={revealInfo.datasetUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="reveal-link"
+              >
+                {revealInfo.credit}
+              </a>
+            </div>
+
+            <button
+              type="button"
+              className="reveal-continue"
+              onClick={handleContinue}
+              autoFocus
+            >
+              Continue →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showShareModal && deckResults && (
+        <div className="share-overlay" role="dialog" aria-modal="true">
+          <div className="share-panel">
+            <div className="share-header">
+              <h2>Deck Complete!</h2>
+              <button type="button" className="icon-button ghost" onClick={handleCloseShareModal}>
+                ✕
+              </button>
+            </div>
+            <div className="share-results">
+              <div className="share-score">
+                <span className="share-score-value">{deckResults.correct}/{deckResults.total}</span>
+                <span className="share-score-label">Correct</span>
+              </div>
+              <div className="share-accuracy">
+                <span className="share-accuracy-value">
+                  {Math.round((deckResults.correct / deckResults.total) * 100)}%
+                </span>
+                <span className="share-accuracy-label">Accuracy</span>
+              </div>
+            </div>
+            <p className="share-message">
+              {deckResults.correct === deckResults.total
+                ? 'Perfect score! You have an eagle eye for AI.'
+                : deckResults.correct >= deckResults.total * 0.75
+                ? 'Great job! You can spot the fakes.'
+                : deckResults.correct >= deckResults.total * 0.5
+                ? 'Not bad! Keep practicing to improve.'
+                : 'The AI is getting better! Keep training your eye.'}
+            </p>
+            <div className="share-actions">
+              <button type="button" className="share-button primary" onClick={handleShare}>
+                {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'shared' ? 'Shared!' : 'Share Results'}
+              </button>
+              <button type="button" className="share-button secondary" onClick={handleCloseShareModal}>
+                Continue Playing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCookieBanner && (
         <div className="cookie-banner" role="dialog" aria-live="polite">
           <div className="cookie-content">
@@ -976,6 +1144,25 @@ function App() {
                 <p className="info-text">No card loaded yet.</p>
               )}
             </section>
+            {modelStats.length > 0 && (
+              <section className="info-section">
+                <h3>Most Convincing AI Models</h3>
+                <p className="info-text">
+                  Which AI models fool humans the most? Here are the top performers ranked by "fool rate" — the percentage of times players incorrectly guessed an AI image was real.
+                </p>
+                <div className="model-stats-list">
+                  {modelStats.slice(0, 5).map((stat, index) => (
+                    <div key={stat.model} className="model-stat-item">
+                      <span className="model-rank">#{index + 1}</span>
+                      <span className="model-name">{stat.model}</span>
+                      <span className="model-fool-rate">{stat.foolRate}% fooled</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="info-meta">Based on {modelStats.reduce((sum, m) => sum + m.guesses, 0).toLocaleString()} guesses (min. 10 per model)</p>
+              </section>
+            )}
+
             <section className="info-section">
               <h3>Dataset</h3>
               <p className="info-text">

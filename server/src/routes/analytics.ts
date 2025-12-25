@@ -536,4 +536,48 @@ router.get('/players', (req, res) => {
   }
 });
 
+// Public endpoint: Top AI models by "fool rate" (% of times humans guessed wrong)
+router.get('/public-model-stats', (_req, res) => {
+  try {
+    const db = getDatabase();
+
+    // Get models with at least 10 guesses, sorted by fool rate (1 - accuracy)
+    const rows = db.prepare(`
+      SELECT
+        COALESCE(NULLIF(TRIM(g.model), ''), 'Unknown') AS model,
+        COUNT(g.id) AS guesses,
+        AVG(g.correct) AS accuracy,
+        (1.0 - AVG(g.correct)) * 100 AS fool_rate
+      FROM analytics_guesses g
+      INNER JOIN analytics_sessions s ON s.id = g.session_id
+      WHERE s.opted_in = 1
+        AND g.dataset_source = 'synthetic'
+        AND g.model IS NOT NULL
+        AND TRIM(g.model) <> ''
+      GROUP BY LOWER(TRIM(g.model))
+      HAVING COUNT(g.id) >= 10
+      ORDER BY fool_rate DESC
+      LIMIT 10
+    `).all() as Array<{
+      model: string;
+      guesses: number;
+      accuracy: number | null;
+      fool_rate: number | null;
+    }>;
+
+    res.json({
+      success: true,
+      models: rows.map((row) => ({
+        model: row.model,
+        guesses: row.guesses,
+        foolRate: row.fool_rate ? Math.round(row.fool_rate) : 0,
+        humanAccuracy: row.accuracy ? Math.round(row.accuracy * 100) : 0,
+      })),
+    });
+  } catch (error) {
+    console.error('Analytics public model stats error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
 export { router as analyticsRoutes };

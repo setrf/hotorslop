@@ -362,3 +362,15 @@ export async function fetchAnalyticsPlayers(params: PlayerInsightsParams = {}): 
   const data = await getJson<{ success: true; players: PlayerInsight[]; total: number; limit: number; offset: number }>(endpoint);
   return { players: data.players, total: data.total, limit: data.limit, offset: data.offset };
 }
+
+export type PublicModelStat = {
+  model: string;
+  guesses: number;
+  foolRate: number;
+  humanAccuracy: number;
+};
+
+export async function fetchPublicModelStats(): Promise<PublicModelStat[]> {
+  const data = await getJson<{ success: true; models: PublicModelStat[] }>('/analytics/public-model-stats');
+  return data.models;
+}
