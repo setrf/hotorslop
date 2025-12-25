@@ -1594,13 +1594,15 @@
 }
 
 .feedback-toast.success {
-  background: linear-gradient(170deg, rgba(61, 169, 51, 0.96), rgba(45, 136, 37, 0.96));
+  background: linear-gradient(170deg, rgba(61, 169, 51, 0.75), rgba(45, 136, 37, 0.75));
   border: 1px solid rgba(100, 200, 90, 0.35);
+  backdrop-filter: blur(12px);
 }
 
 .feedback-toast.error {
-  background: linear-gradient(170deg, rgba(180, 30, 35, 0.96), rgba(140, 20, 25, 0.96));
+  background: linear-gradient(170deg, rgba(180, 30, 35, 0.75), rgba(140, 20, 25, 0.75));
   border: 1px solid rgba(255, 80, 80, 0.3);
+  backdrop-filter: blur(12px);
 }
 
 @keyframes feedbackSlideDown {
