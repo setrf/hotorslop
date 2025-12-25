@@ -111,9 +111,6 @@ function App() {
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false)
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false)
   const [modelStats, setModelStats] = useState<PublicModelStat[]>([])
-  const [showShareModal, setShowShareModal] = useState(false)
-  const [deckResults, setDeckResults] = useState<{ correct: number; total: number } | null>(null)
-  const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle')
   const [cookiePreference, setCookiePreference] = useState<CookiePreference | null>(() => loadCookiePreference())
   const showCookieBanner = cookiePreference === null
 
@@ -398,14 +395,7 @@ function App() {
     setCurrentIndex((prev) => {
       const next = prev + 1
       if (next >= deck.length) {
-        // Deck completed - save results and show share modal
-        const results = { ...deckStatsRef.current }
-        if (results.total > 0) {
-          setDeckResults(results)
-          setShareStatus('idle')
-          setShowShareModal(true)
-        }
-        // Reset deck stats for next deck
+        // Deck completed - reset stats and load next deck seamlessly
         deckStatsRef.current = { correct: 0, total: 0 }
         void loadDeck(true)
         return 0
@@ -693,44 +683,6 @@ function App() {
     setCookiePreference('declined')
   }, [])
 
-  const handleShare = useCallback(async () => {
-    if (!deckResults) return
-
-    const accuracy = Math.round((deckResults.correct / deckResults.total) * 100)
-    const emoji = accuracy === 100 ? '🏆' : accuracy >= 75 ? '🔥' : accuracy >= 50 ? '👍' : '😅'
-    const shareText = `${emoji} Hot or Slop - I got ${deckResults.correct}/${deckResults.total} (${accuracy}%) spotting AI-generated images!\n\nCan you beat my score? Play at:`
-    const shareUrl = 'https://hotorslop.mertgulsun.com'
-
-    if (typeof navigator !== 'undefined' && 'share' in navigator) {
-      try {
-        await navigator.share({
-          title: 'Hot or Slop Results',
-          text: shareText,
-          url: shareUrl,
-        })
-        setShareStatus('shared')
-        return
-      } catch (error) {
-        // User cancelled or share failed, fall back to clipboard
-        if ((error as Error).name === 'AbortError') return
-      }
-    }
-
-    // Fallback to clipboard
-    try {
-      await navigator.clipboard.writeText(`${shareText} ${shareUrl}`)
-      setShareStatus('copied')
-    } catch {
-      console.warn('Failed to copy to clipboard')
-    }
-  }, [deckResults])
-
-  const handleCloseShareModal = useCallback(() => {
-    setShowShareModal(false)
-    setDeckResults(null)
-    setShareStatus('idle')
-  }, [])
-
   const handleInfoBackdropClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (event.target === event.currentTarget) {
@@ -1005,48 +957,6 @@ function App() {
               <span className="feedback-toast-prompt">{truncate(feedbackMessage.reveal.prompt, 140)}</span>
             </div>
           )}
-        </div>
-      )}
-
-      {showShareModal && deckResults && (
-        <div className="share-overlay" role="dialog" aria-modal="true">
-          <div className="share-panel">
-            <div className="share-header">
-              <h2>Deck Complete!</h2>
-              <button type="button" className="icon-button ghost" onClick={handleCloseShareModal}>
-                ✕
-              </button>
-            </div>
-            <div className="share-results">
-              <div className="share-score">
-                <span className="share-score-value">{deckResults.correct}/{deckResults.total}</span>
-                <span className="share-score-label">Correct</span>
-              </div>
-              <div className="share-accuracy">
-                <span className="share-accuracy-value">
-                  {Math.round((deckResults.correct / deckResults.total) * 100)}%
-                </span>
-                <span className="share-accuracy-label">Accuracy</span>
-              </div>
-            </div>
-            <p className="share-message">
-              {deckResults.correct === deckResults.total
-                ? 'Perfect score! You have an eagle eye for AI.'
-                : deckResults.correct >= deckResults.total * 0.75
-                ? 'Great job! You can spot the fakes.'
-                : deckResults.correct >= deckResults.total * 0.5
-                ? 'Not bad! Keep practicing to improve.'
-                : 'The AI is getting better! Keep training your eye.'}
-            </p>
-            <div className="share-actions">
-              <button type="button" className="share-button primary" onClick={handleShare}>
-                {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'shared' ? 'Shared!' : 'Share Results'}
-              </button>
-              <button type="button" className="share-button secondary" onClick={handleCloseShareModal}>
-                Continue Playing
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
