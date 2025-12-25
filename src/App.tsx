@@ -10,14 +10,6 @@ import AdminAnalyticsPanel from './components/AdminAnalyticsPanel'
 
 type GuessType = 'ai' | 'real'
 
-type RevealInfo = {
-  correct: boolean
-  answer: GuessType
-  model: string | null
-  prompt: string
-  credit: string
-  datasetUrl: string
-}
 
 import { getLeaderboard, saveGuess } from './services/api'
 type LeaderboardEntry = {
@@ -122,8 +114,6 @@ function App() {
   const [showShareModal, setShowShareModal] = useState(false)
   const [deckResults, setDeckResults] = useState<{ correct: number; total: number } | null>(null)
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared'>('idle')
-  const [revealToast, setRevealToast] = useState<RevealInfo | null>(null)
-  const revealToastTimeoutRef = useRef<number | null>(null)
   const [cookiePreference, setCookiePreference] = useState<CookiePreference | null>(() => loadCookiePreference())
   const showCookieBanner = cookiePreference === null
 
@@ -546,19 +536,11 @@ function App() {
         id: feedbackCounterRef.current,
         message: `${feedbackText} ${motivationalMessage}`,
         type: correct ? 'success' : 'error',
-      })
-
-      // Show reveal toast with image details (non-blocking)
-      if (revealToastTimeoutRef.current) {
-        window.clearTimeout(revealToastTimeoutRef.current)
-      }
-      setRevealToast({
-        correct,
-        answer: currentCard.answer,
-        model: currentCard.model ?? null,
-        prompt: currentCard.prompt,
-        credit: currentCard.credit,
-        datasetUrl: currentCard.datasetUrl,
+        reveal: {
+          answer: currentCard.answer,
+          model: currentCard.model ?? null,
+          prompt: currentCard.prompt,
+        },
       })
 
       if (resultTimeoutRef.current) {
@@ -568,7 +550,7 @@ function App() {
       resultTimeoutRef.current = window.setTimeout(() => {
         setFeedbackMessage(null)
         resultTimeoutRef.current = null
-      }, 2200)
+      }, 4000)
 
       // Auto-advance to next card after brief delay
       if (cardAdvanceTimeoutRef.current) {
@@ -579,12 +561,6 @@ function App() {
         setIsLocked(false)
         cardAdvanceTimeoutRef.current = null
       }, 600)
-
-      // Clear reveal toast after longer delay
-      revealToastTimeoutRef.current = window.setTimeout(() => {
-        setRevealToast(null)
-        revealToastTimeoutRef.current = null
-      }, 4500)
 
       // Refresh leaderboard immediately after each guess to show updated rankings
       loadGlobalLeaderboard().catch(error => {
@@ -652,10 +628,6 @@ function App() {
       if (cardAdvanceTimeoutRef.current && typeof window !== 'undefined') {
         window.clearTimeout(cardAdvanceTimeoutRef.current)
         cardAdvanceTimeoutRef.current = null
-      }
-      if (revealToastTimeoutRef.current && typeof window !== 'undefined') {
-        window.clearTimeout(revealToastTimeoutRef.current)
-        revealToastTimeoutRef.current = null
       }
     }
   }, [])
@@ -823,7 +795,16 @@ function App() {
     .filter(Boolean)
     .join(' ')
 
-  type FeedbackBanner = { id: number; message: string; type: 'success' | 'error' }
+  type FeedbackBanner = {
+    id: number
+    message: string
+    type: 'success' | 'error'
+    reveal?: {
+      answer: 'ai' | 'real'
+      model: string | null
+      prompt: string
+    }
+  }
   const [feedbackMessage, setFeedbackMessage] = useState<FeedbackBanner | null>(null)
   const feedbackCounterRef = useRef(0)
 
@@ -1008,25 +989,22 @@ function App() {
       {feedbackMessage && (
         <div
           key={feedbackMessage.id}
-          className={`feedback-message ${feedbackMessage.type}`}
+          className={`feedback-toast ${feedbackMessage.type}`}
           role="status"
           aria-live="polite"
         >
-          {feedbackMessage.message}
-        </div>
-      )}
-
-      {revealToast && (
-        <div className={`reveal-toast ${revealToast.correct ? 'correct' : 'incorrect'}`} role="status">
-          <div className="reveal-toast-header">
-            <span className="reveal-toast-type">
-              {revealToast.answer === 'ai' ? '🤖 AI' : '📸 Real'}
-            </span>
-            {revealToast.answer === 'ai' && revealToast.model && (
-              <span className="reveal-toast-model">{revealToast.model}</span>
-            )}
-          </div>
-          <p className="reveal-toast-prompt">{truncate(revealToast.prompt, 120)}</p>
+          <div className="feedback-toast-main">{feedbackMessage.message}</div>
+          {feedbackMessage.reveal && (
+            <div className="feedback-toast-reveal">
+              <span className="feedback-toast-type">
+                {feedbackMessage.reveal.answer === 'ai' ? '🤖 AI' : '📸 Real'}
+              </span>
+              {feedbackMessage.reveal.answer === 'ai' && feedbackMessage.reveal.model && (
+                <span className="feedback-toast-model">{feedbackMessage.reveal.model}</span>
+              )}
+              <span className="feedback-toast-prompt">{truncate(feedbackMessage.reveal.prompt, 80)}</span>
+            </div>
+          )}
         </div>
       )}
 

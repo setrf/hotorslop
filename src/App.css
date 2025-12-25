@@ -1533,83 +1533,38 @@
     padding: 0.5rem 0.8rem;
   }
 }
-.feedback-message {
+/* Combined Feedback Toast (top) */
+.feedback-toast {
   position: fixed;
-  top: clamp(1.6rem, 6vw, 2.5rem);
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 1.1rem 2.4rem;
-  border-radius: 24px;
-  font-weight: 600;
-  font-size: 1.05rem;
-  text-align: center;
-  z-index: 50;
-  animation: feedbackSlide 2.2s ease forwards;
-  box-shadow: 0 20px 40px rgba(23, 12, 7, 0.45);
-  pointer-events: none;
-  max-width: min(90vw, 520px);
-  line-height: 1.45;
-  color: var(--color-text-primary);
-}
-
-@keyframes feedbackSlide {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -170%);
-  }
-  12% {
-    opacity: 1;
-    transform: translate(-50%, 0%);
-  }
-  75% {
-    opacity: 1;
-    transform: translate(-50%, 0%);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -170%);
-  }
-}
-
-.feedback-message.success {
-  background: #3DA933;
-  color: #f5f1e8;
-}
-
-.feedback-message.error {
-  background: #DD0E15;
-  color: #f5f1e8;
-}
-
-/* Reveal Toast Styles (non-blocking) */
-.reveal-toast {
-  position: fixed;
-  bottom: clamp(1.5rem, 4vw, 2.5rem);
+  top: clamp(0.8rem, 2.5vw, 1.2rem);
   left: 50%;
   transform: translateX(-50%);
-  width: min(420px, 90vw);
-  padding: 0.9rem 1.2rem;
-  border-radius: 16px;
-  background: linear-gradient(170deg, rgba(95, 82, 79, 0.96), rgba(67, 54, 51, 0.96));
-  border: 1px solid rgba(255, 241, 225, 0.15);
-  box-shadow: 0 16px 40px rgba(29, 19, 15, 0.5);
-  z-index: 35;
-  animation: revealToastSlideUp 0.3s ease;
+  width: min(460px, 92vw);
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  z-index: 50;
   pointer-events: none;
+  animation: feedbackSlideDown 0.25s ease;
+  box-shadow: 0 14px 40px rgba(29, 19, 15, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
-.reveal-toast.correct {
-  border-left: 3px solid #3DA933;
+.feedback-toast.success {
+  background: linear-gradient(170deg, rgba(61, 169, 51, 0.96), rgba(45, 136, 37, 0.96));
+  border: 1px solid rgba(100, 200, 90, 0.35);
 }
 
-.reveal-toast.incorrect {
-  border-left: 3px solid #DD0E15;
+.feedback-toast.error {
+  background: linear-gradient(170deg, rgba(180, 30, 35, 0.96), rgba(140, 20, 25, 0.96));
+  border: 1px solid rgba(255, 80, 80, 0.3);
 }
 
-@keyframes revealToastSlideUp {
+@keyframes feedbackSlideDown {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(20px);
+    transform: translateX(-50%) translateY(-18px);
   }
   to {
     opacity: 1;
@@ -1617,40 +1572,47 @@
   }
 }
 
-.reveal-toast-header {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.4rem;
-}
-
-.reveal-toast-type {
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-primary);
-}
-
-.reveal-toast-model {
-  font-size: 0.75rem;
+.feedback-toast-main {
+  font-size: 0.88rem;
   font-weight: 600;
-  color: #ff9c66;
-  padding: 0.15rem 0.5rem;
-  background: rgba(255, 156, 102, 0.15);
-  border-radius: 6px;
+  color: #f5f1e8;
+  line-height: 1.35;
 }
 
-.reveal-toast-prompt {
-  margin: 0;
-  font-size: 0.85rem;
-  line-height: 1.45;
-  color: var(--color-text-secondary);
+.feedback-toast-reveal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.feedback-toast-type {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.feedback-toast-model {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #ffd699;
+  padding: 0.1rem 0.4rem;
+  background: rgba(255, 200, 120, 0.22);
+  border-radius: 4px;
+}
+
+.feedback-toast-prompt {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.72);
   overflow: hidden;
   text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
 }
 
 /* Model Stats in Info Panel */
