@@ -95,9 +95,17 @@ type NanoBananaRowsResponse = {
   }>
 }
 
-let cachedSyntheticRowCount: number | null = null
-let cachedRealRowCount: number | null = null
-let cachedNanoBananaRowCount: number | null = null
+// Hardcoded row counts - eliminates 4 info API calls on initial load
+// These values are stable and only need occasional verification
+const HARDCODED_ROW_COUNTS = {
+  synthetic: 27543,   // OpenFake synthetic split
+  real: 40504,        // COCO-Caption2017 val split
+  nanoBanana: 9457,   // Nano-Banana train split
+}
+
+let cachedSyntheticRowCount: number | null = HARDCODED_ROW_COUNTS.synthetic
+let cachedRealRowCount: number | null = HARDCODED_ROW_COUNTS.real
+let cachedNanoBananaRowCount: number | null = HARDCODED_ROW_COUNTS.nanoBanana
 
 const log = (...args: unknown[]) => {
   // Centralised logging so future suppression is easy.
@@ -613,6 +621,25 @@ const drawOpenFakeRealCards = async (count: number, limitPerFetch: number): Prom
   }
 
   return result
+}
+
+// Quick fetch for progressive loading - gets minimum viable deck fast
+export const fetchQuickDeck = async (count = 4): Promise<HotOrSlopImage[]> => {
+  const targetFake = Math.ceil(count / 2)
+  const targetReal = count - targetFake
+
+  log('Quick fetch starting', { count, targetFake, targetReal })
+
+  // Only fetch from 2 sources (1 synthetic, 1 real) for speed
+  const [synthetic, real] = await Promise.all([
+    drawSyntheticCards(targetFake, 12),
+    drawRealCards(targetReal, 12),
+  ])
+
+  const combined = shuffle([...synthetic, ...real])
+  log('Quick fetch complete', { synthetic: synthetic.length, real: real.length })
+
+  return combined.slice(0, count)
 }
 
 export const fetchOpenFakeDeck = async ({

@@ -3,7 +3,7 @@ import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useSwipeable } from 'react-swipeable'
 
 import './App.css'
-import { fetchOpenFakeDeck, OPEN_FAKE_CONSTANTS, type HotOrSlopImage } from './services/openfake'
+import { fetchOpenFakeDeck, fetchQuickDeck, OPEN_FAKE_CONSTANTS, type HotOrSlopImage } from './services/openfake'
 
 import { analytics, fetchPublicModelStats, type PublicModelStat } from './services/analytics'
 import AdminAnalyticsPanel from './components/AdminAnalyticsPanel'
@@ -238,9 +238,6 @@ function App() {
         analytics.setDeck(deckId, items.length)
         setDeck(items)
         setCurrentIndex(0)
-        if (typeof window !== 'undefined') {
-          window.setTimeout(() => {}, 200)
-        }
         setIsLoadingDeck(false)
         hasLoadedInitialDeckRef.current = true
         void prefetchDeck()
@@ -249,22 +246,48 @@ function App() {
 
       setIsLoadingDeck(true)
       try {
-        const items = await fetchOpenFakeDeck({ count: DECK_SIZE })
+        // Progressive loading: get 4 images quickly, show immediately
+        const quickItems = await fetchQuickDeck(4)
         const deckId = generateDeckId()
         currentDeckIdRef.current = deckId
-        analytics.setDeck(deckId, items.length)
-        setDeck(items)
-        setCurrentIndex(0)
-        if (typeof window !== 'undefined') {
-          window.setTimeout(() => {}, 200)
+
+        if (quickItems.length > 0) {
+          // Show first batch immediately - user can start playing
+          setDeck(quickItems)
+          setCurrentIndex(0)
+          setIsLoadingDeck(false)
+          hasLoadedInitialDeckRef.current = true
+
+          // Background: fetch remaining 4 images and append
+          fetchOpenFakeDeck({ count: 4 })
+            .then((remaining) => {
+              if (remaining.length > 0) {
+                setDeck((prev) => {
+                  // Only append if we're still on the same deck
+                  if (currentDeckIdRef.current === deckId) {
+                    return [...prev, ...remaining]
+                  }
+                  return prev
+                })
+              }
+            })
+            .catch((err) => console.warn('Background deck fill failed:', err))
+
+          void prefetchDeck()
+        } else {
+          // Fallback to full fetch if quick fetch failed
+          const items = await fetchOpenFakeDeck({ count: DECK_SIZE })
+          analytics.setDeck(deckId, items.length)
+          setDeck(items)
+          setCurrentIndex(0)
+          setIsLoadingDeck(false)
+          hasLoadedInitialDeckRef.current = true
+          void prefetchDeck()
         }
-        hasLoadedInitialDeckRef.current = true
       } catch (error) {
         console.error('Failed to fetch OpenFake deck', error)
         setDeckError('Could not reach the OpenFake dataset. Check your connection and try again.')
-      } finally {
         setIsLoadingDeck(false)
-        void prefetchDeck()
       }
     },
     [prefetchDeck]
