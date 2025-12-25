@@ -295,7 +295,7 @@ function App() {
 
   const loadGlobalLeaderboard = useCallback(async () => {
     try {
-      const response = await getLeaderboard(50, 'all')
+      const response = await getLeaderboard(500, 'all')
       setLeaderboard(response.leaderboard)
     } catch (error) {
       console.error('Failed to load leaderboard:', error)
