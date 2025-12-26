@@ -1863,6 +1863,9 @@
   border: 1px solid rgba(255, 241, 225, 0.14);
   overflow: hidden;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .skeleton-card::after {
@@ -1871,6 +1874,18 @@
   inset: 0;
   background: linear-gradient(90deg, transparent 0%, rgba(255, 241, 225, 0.08) 50%, transparent 100%);
   animation: skeletonShimmer 1.5s infinite;
+  pointer-events: none;
+}
+
+.skeleton-loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  z-index: 1;
 }
 
 @keyframes skeletonShimmer {

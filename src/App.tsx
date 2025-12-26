@@ -904,7 +904,12 @@ function App() {
           ) : (
             <div className="card-placeholder">
               {isLoadingDeck ? (
-                <div className="skeleton-card" aria-label="Loading image..." />
+                <div className="skeleton-card" aria-label="Loading image...">
+                  <div className="skeleton-loading-content">
+                    <span className="loading-pip" />
+                    <span>Loading images...</span>
+                  </div>
+                </div>
               ) : deckError ? (
                 <>
                   <p>{deckError} 😅</p>
