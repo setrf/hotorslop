@@ -1164,7 +1164,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {leaderboard.slice(0, 10).map((entry) => {
+                    {leaderboard.map((entry) => {
                       const isPlayer = entry.username.toLowerCase() === playerName.toLowerCase()
                       return (
                         <tr key={entry.username} className={`${isPlayer ? 'highlight' : ''} ${entry.is_active ? 'active' : ''}`}>
