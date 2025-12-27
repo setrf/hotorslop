@@ -130,24 +130,36 @@
 
       try {
         // Try multiple random offsets to find samples
-        for (let attempt = 0; attempt < 5 && images.length < targetCount; attempt++) {
+        for (let attempt = 0; attempt < 8 && images.length < targetCount; attempt++) {
           const offset = Math.floor(Math.random() * 27000);
-          const rowsUrl = `${HF_API}/rows?dataset=Anonymous460/OpenFake&config=default&split=test&offset=${offset}&limit=200`;
-          const res = await fetch(rowsUrl);
-          const data = await res.json();
+          const rowsUrl = `${HF_API}/rows?dataset=Anonymous460/OpenFake&config=default&split=test&offset=${offset}&limit=300`;
 
-          (data.rows || []).forEach(r => {
-            const row = r.row;
-            if (row.label === 'fake' && row.model === model && row.image?.src && images.length < targetCount) {
-              images.push(row.image.src);
+          try {
+            const res = await fetch(rowsUrl);
+            if (!res.ok) {
+              console.warn(`Fetch failed for ${model} at offset ${offset}: ${res.status}`);
+              continue;
             }
-          });
+            const data = await res.json();
 
-          if (images.length >= targetCount) break;
+            (data.rows || []).forEach(r => {
+              const row = r.row;
+              if (row.label === 'fake' && row.model === model && row.image?.src && images.length < targetCount) {
+                images.push(row.image.src);
+              }
+            });
+
+            if (images.length >= targetCount) break;
+          } catch (fetchErr) {
+            console.warn(`Error fetching ${model} attempt ${attempt}:`, fetchErr);
+          }
+
+          // Small delay between requests to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         if (images.length === 0) {
-          container.innerHTML = '<div class="loading">No samples found</div>';
+          container.innerHTML = '<div class="loading">No samples found (rare model)</div>';
           countEl.textContent = '(0 found)';
         } else {
           countEl.textContent = `(${images.length} found)`;
@@ -156,7 +168,9 @@
           `).join('');
         }
       } catch (err) {
-        container.innerHTML = `<div class="loading">Error loading</div>`;
+        console.error(`Error loading ${model}:`, err);
+        container.innerHTML = `<div class="loading">Error: ${err.message}</div>`;
+        countEl.textContent = '(error)';
       }
     }
 
@@ -169,9 +183,13 @@
       try {
         const offset = Math.floor(Math.random() * 27000);
         const rowsUrl = `${HF_API}/rows?dataset=Anonymous460/OpenFake&config=default&split=test&offset=${offset}&limit=100`;
-        const res = await fetch(rowsUrl);
-        const data = await res.json();
 
+        const res = await fetch(rowsUrl);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
         (data.rows || []).forEach(r => {
           const row = r.row;
           if (row.label === 'real' && row.image?.src && images.length < 5) {
@@ -179,60 +197,91 @@
           }
         });
 
-        countEl.textContent = `(${images.length} found)`;
-        container.innerHTML = images.map(src => `
-          <div class="card"><img src="${src}" alt="" loading="lazy"></div>
-        `).join('');
+        if (images.length === 0) {
+          container.innerHTML = '<div class="loading">No samples found</div>';
+          countEl.textContent = '(0 found)';
+        } else {
+          countEl.textContent = `(${images.length} found)`;
+          container.innerHTML = images.map(src => `
+            <div class="card"><img src="${src}" alt="" loading="lazy"></div>
+          `).join('');
+        }
       } catch (err) {
-        container.innerHTML = `<div class="loading">Error loading</div>`;
+        console.error('OpenFake real fetch error:', err);
+        container.innerHTML = `<div class="loading">Error: ${err.message}</div>`;
+        countEl.textContent = '(error)';
       }
     }
 
     // Fetch Nano-Banana (Gemini)
     async function fetchNanoBanana() {
+      const container = document.getElementById('model-gemini');
+      const countEl = document.getElementById('count-gemini');
+
       try {
         const offset = Math.floor(Math.random() * 9000);
         const rowsUrl = `${HF_API}/rows?dataset=bitmind/nano-banana&config=default&split=train&offset=${offset}&limit=10`;
-        const res = await fetch(rowsUrl);
-        const data = await res.json();
 
+        const res = await fetch(rowsUrl);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
         const images = (data.rows || [])
-          .map(r => r.row.image?.src)
+          .map(r => r.row?.image?.src)
           .filter(Boolean)
           .slice(0, 5);
 
-        const container = document.getElementById('model-gemini');
-        const countEl = document.getElementById('count-gemini');
-        countEl.textContent = '(9457 total)';
-        container.innerHTML = images.map(src => `
-          <div class="card"><img src="${src}" alt="" loading="lazy"></div>
-        `).join('');
+        if (images.length === 0) {
+          container.innerHTML = '<div class="loading">No images found</div>';
+          countEl.textContent = '(0 found)';
+        } else {
+          countEl.textContent = `(${images.length} found)`;
+          container.innerHTML = images.map(src => `
+            <div class="card"><img src="${src}" alt="" loading="lazy"></div>
+          `).join('');
+        }
       } catch (err) {
         console.error('Nano-Banana fetch error:', err);
+        container.innerHTML = `<div class="loading">Error: ${err.message}</div>`;
+        countEl.textContent = '(error)';
       }
     }
 
     // Fetch COCO
     async function fetchCoco() {
+      const container = document.getElementById('model-coco');
+      const countEl = document.getElementById('count-coco');
+
       try {
         const offset = Math.floor(Math.random() * 40000);
         const rowsUrl = `${HF_API}/rows?dataset=lmms-lab/COCO-Caption2017&config=default&split=val&offset=${offset}&limit=10`;
-        const res = await fetch(rowsUrl);
-        const data = await res.json();
 
+        const res = await fetch(rowsUrl);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
         const images = (data.rows || [])
-          .map(r => r.row.image?.src)
+          .map(r => r.row?.image?.src)
           .filter(Boolean)
           .slice(0, 5);
 
-        const container = document.getElementById('model-coco');
-        const countEl = document.getElementById('count-coco');
-        countEl.textContent = '(40504 total)';
-        container.innerHTML = images.map(src => `
-          <div class="card"><img src="${src}" alt="" loading="lazy"></div>
-        `).join('');
+        if (images.length === 0) {
+          container.innerHTML = '<div class="loading">No images found</div>';
+          countEl.textContent = '(0 found)';
+        } else {
+          countEl.textContent = `(${images.length} found)`;
+          container.innerHTML = images.map(src => `
+            <div class="card"><img src="${src}" alt="" loading="lazy"></div>
+          `).join('');
+        }
       } catch (err) {
         console.error('COCO fetch error:', err);
+        container.innerHTML = `<div class="loading">Error: ${err.message}</div>`;
+        countEl.textContent = '(error)';
       }
     }
 
