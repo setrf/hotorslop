@@ -213,6 +213,14 @@ const openFakeRealDefaultCredit = `OpenFake dataset (real) · ${SYNTHETIC_DATASE
 
 const ALLOWED_MODEL_PREFIXES = ['real', 'imagen', 'gpt', 'flux']
 
+const EXCLUDED_MODELS = [
+  'gpt-image-1',
+  'flux.1-schnell',
+  'imagen-3.0-002',
+  'imagen-4.0',
+  'flux.1-dev'
+]
+
 const getSyntheticRowCount = async (): Promise<number> => {
   if (cachedSyntheticRowCount !== null) return cachedSyntheticRowCount
   const params = new URLSearchParams({
@@ -360,6 +368,10 @@ const buildSyntheticImage = (
   const rawModel = raw.model
   if (!rawModel) return null
   const modelLower = rawModel.toLowerCase()
+
+  // Check if model is excluded
+  if (EXCLUDED_MODELS.includes(rawModel)) return null
+
   const isAllowed = ALLOWED_MODEL_PREFIXES.some((prefix) => modelLower.startsWith(prefix))
   if (!isAllowed) return null
 
