@@ -122,96 +122,73 @@
       </div>
     `;
 
-    // Fetch samples for a specific model
-    async function fetchModelSamples(model, targetCount = 5) {
-      const container = document.getElementById(`model-${model}`);
-      const countEl = document.getElementById(`count-${model}`);
-      const images = [];
-
+    // Fetch all OpenFake data and group by model
+    async function fetchAllOpenFakeModels() {
       try {
-        // Try multiple random offsets to find samples
-        for (let attempt = 0; attempt < 8 && images.length < targetCount; attempt++) {
-          const offset = Math.floor(Math.random() * 27000);
-          const rowsUrl = `${HF_API}/rows?dataset=Anonymous460/OpenFake&config=default&split=test&offset=${offset}&limit=300`;
+        // Fetch multiple large batches from different offsets
+        const batches = await Promise.all([
+          fetch(`${HF_API}/rows?dataset=Anonymous460/OpenFake&config=default&split=test&offset=0&limit=1000`),
+          fetch(`${HF_API}/rows?dataset=Anonymous460/OpenFake&config=default&split=test&offset=5000&limit=1000`),
+          fetch(`${HF_API}/rows?dataset=Anonymous460/OpenFake&config=default&split=test&offset=10000&limit=1000`),
+          fetch(`${HF_API}/rows?dataset=Anonymous460/OpenFake&config=default&split=test&offset=15000&limit=1000`),
+          fetch(`${HF_API}/rows?dataset=Anonymous460/OpenFake&config=default&split=test&offset=20000&limit=1000`)
+        ]);
 
-          try {
-            const res = await fetch(rowsUrl);
-            if (!res.ok) {
-              console.warn(`Fetch failed for ${model} at offset ${offset}: ${res.status}`);
-              continue;
+        const allData = await Promise.all(batches.map(r => r.json()));
+
+        // Group images by model
+        const byModel = {};
+        const realImages = [];
+
+        allData.forEach(data => {
+          (data.rows || []).forEach(r => {
+            const row = r.row;
+            if (row.label === 'fake' && row.model && row.image?.src) {
+              if (!byModel[row.model]) byModel[row.model] = [];
+              byModel[row.model].push(row.image.src);
+            } else if (row.label === 'real' && row.image?.src) {
+              realImages.push(row.image.src);
             }
-            const data = await res.json();
+          });
+        });
 
-            (data.rows || []).forEach(r => {
-              const row = r.row;
-              if (row.label === 'fake' && row.model === model && row.image?.src && images.length < targetCount) {
-                images.push(row.image.src);
-              }
-            });
+        console.log('Models found:', Object.keys(byModel));
 
-            if (images.length >= targetCount) break;
-          } catch (fetchErr) {
-            console.warn(`Error fetching ${model} attempt ${attempt}:`, fetchErr);
-          }
+        // Render each model
+        aiModels.forEach(model => {
+          const container = document.getElementById(`model-${model}`);
+          const countEl = document.getElementById(`count-${model}`);
+          const images = byModel[model] || [];
 
-          // Small delay between requests to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-
-        if (images.length === 0) {
-          container.innerHTML = '<div class="loading">No samples found (rare model)</div>';
-          countEl.textContent = '(0 found)';
-        } else {
-          countEl.textContent = `(${images.length} found)`;
-          container.innerHTML = images.slice(0, targetCount).map(src => `
-            <div class="card"><img src="${src}" alt="" loading="lazy"></div>
-          `).join('');
-        }
-      } catch (err) {
-        console.error(`Error loading ${model}:`, err);
-        container.innerHTML = `<div class="loading">Error: ${err.message}</div>`;
-        countEl.textContent = '(error)';
-      }
-    }
-
-    // Fetch OpenFake real samples
-    async function fetchOpenFakeReal() {
-      const container = document.getElementById('model-openfake-real');
-      const countEl = document.getElementById('count-openfake-real');
-      const images = [];
-
-      try {
-        const offset = Math.floor(Math.random() * 27000);
-        const rowsUrl = `${HF_API}/rows?dataset=Anonymous460/OpenFake&config=default&split=test&offset=${offset}&limit=100`;
-
-        const res = await fetch(rowsUrl);
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-
-        const data = await res.json();
-        (data.rows || []).forEach(r => {
-          const row = r.row;
-          if (row.label === 'real' && row.image?.src && images.length < 5) {
-            images.push(row.image.src);
+          if (images.length === 0) {
+            container.innerHTML = '<div class="loading">No samples in fetched data</div>';
+            countEl.textContent = '(0 found)';
+          } else {
+            countEl.textContent = `(${images.length} found)`;
+            container.innerHTML = images.slice(0, 5).map(src => `
+              <div class="card"><img src="${src}" alt="" loading="lazy"></div>
+            `).join('');
           }
         });
 
-        if (images.length === 0) {
-          container.innerHTML = '<div class="loading">No samples found</div>';
-          countEl.textContent = '(0 found)';
+        // Render OpenFake real
+        const realContainer = document.getElementById('model-openfake-real');
+        const realCountEl = document.getElementById('count-openfake-real');
+        if (realImages.length === 0) {
+          realContainer.innerHTML = '<div class="loading">No samples found</div>';
+          realCountEl.textContent = '(0 found)';
         } else {
-          countEl.textContent = `(${images.length} found)`;
-          container.innerHTML = images.map(src => `
+          realCountEl.textContent = `(${realImages.length} found)`;
+          realContainer.innerHTML = realImages.slice(0, 5).map(src => `
             <div class="card"><img src="${src}" alt="" loading="lazy"></div>
           `).join('');
         }
+
       } catch (err) {
-        console.error('OpenFake real fetch error:', err);
-        container.innerHTML = `<div class="loading">Error: ${err.message}</div>`;
-        countEl.textContent = '(error)';
+        console.error('OpenFake fetch error:', err);
       }
     }
+
 
     // Fetch Nano-Banana (Gemini)
     async function fetchNanoBanana() {
@@ -285,9 +262,8 @@
       }
     }
 
-    // Load all models
-    aiModels.forEach(model => fetchModelSamples(model, 5));
-    fetchOpenFakeReal();
+    // Load all
+    fetchAllOpenFakeModels();
     fetchNanoBanana();
     fetchCoco();
   </script>
