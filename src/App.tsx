@@ -28,6 +28,37 @@ const PLAYER_STORAGE_KEY = 'hotorslop_player_name'
 const LEADERBOARD_STORAGE_KEY = 'hotorslop_leaderboard'
 const ONBOARDING_STORAGE_KEY = 'hotorslop_onboarded'
 const COOKIE_CONSENT_KEY = 'hotorslop_cookie_consent'
+const STATS_STORAGE_KEY = 'hotorslop_stats'
+
+type PersistedStats = {
+  score: number
+  total: number
+  correct: number
+  streak: number
+  perfectDeckStreak: number
+}
+
+const loadPersistedStats = (): PersistedStats | null => {
+  if (typeof window === 'undefined') return null
+  try {
+    const stored = window.localStorage.getItem(STATS_STORAGE_KEY)
+    if (!stored) return null
+    const parsed = JSON.parse(stored) as PersistedStats
+    if (typeof parsed.score !== 'number' || typeof parsed.total !== 'number') return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+const savePersistedStats = (stats: PersistedStats): void => {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(STATS_STORAGE_KEY, JSON.stringify(stats))
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 
 const loadPlayerName = (): string => {
@@ -165,10 +196,11 @@ function App() {
   const [isLoadingDeck, setIsLoadingDeck] = useState(true)
   const [deckError, setDeckError] = useState<string | null>(null)
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [score, setScore] = useState(0)
-  const [stats, setStats] = useState({ total: 0, correct: 0 })
-  const [streak, setStreak] = useState(0)
-  const [perfectDeckStreak, setPerfectDeckStreak] = useState(0)
+  const persistedStats = useMemo(() => loadPersistedStats(), [])
+  const [score, setScore] = useState(persistedStats?.score ?? 0)
+  const [stats, setStats] = useState({ total: persistedStats?.total ?? 0, correct: persistedStats?.correct ?? 0 })
+  const [streak, setStreak] = useState(persistedStats?.streak ?? 0)
+  const [perfectDeckStreak, setPerfectDeckStreak] = useState(persistedStats?.perfectDeckStreak ?? 0)
   const [isLocked, setIsLocked] = useState(false)
   const [offset, setOffset] = useState(0)
   const [rotation, setRotation] = useState(0)
@@ -323,6 +355,29 @@ function App() {
     analytics.setUsername(playerName)
   }, [playerName])
 
+  // Persist stats to localStorage when they change
+  useEffect(() => {
+    savePersistedStats({
+      score,
+      total: stats.total,
+      correct: stats.correct,
+      streak,
+      perfectDeckStreak,
+    })
+  }, [score, stats.total, stats.correct, streak, perfectDeckStreak])
+
+  // Warn before leaving page during active game
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (stats.total > 0 && !showOnboarding) {
+        event.preventDefault()
+        event.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [stats.total, showOnboarding])
+
   useEffect(() => {
     loadDeck()
   }, [loadDeck])
@@ -331,19 +386,19 @@ function App() {
   useEffect(() => {
     if (!hasLoadedInitialDeckRef.current) return
 
-    const maintainImageBuffer = async () => {
-      const targetBuffer = 8 // Maintain at least 8 images for smooth gameplay
+    let isActive = true
+    const targetBuffer = 8 // Maintain at least 8 images for smooth gameplay
 
+    const maintainImageBuffer = async () => {
       try {
-        // Continuously preload to maintain small buffer
-        while (true) {
+        while (isActive) {
           if (isPrefetchingRef.current) {
             await new Promise(resolve => setTimeout(resolve, 500))
             continue
           }
 
           const currentBuffer = (deck.length - currentIndex) + (nextDeckRef.current?.length || 0)
-          if (currentBuffer < targetBuffer) {
+          if (currentBuffer < targetBuffer && isActive) {
             console.log(`Buffer low (${currentBuffer}), preloading more images...`)
             await fetchOpenFakeDeck({ count: Math.min(targetBuffer, 12), limitPerFetch: 8 })
           }
@@ -352,12 +407,19 @@ function App() {
           await new Promise(resolve => setTimeout(resolve, 2000))
         }
       } catch (error) {
-        console.warn('Buffer maintenance failed:', error)
+        if (isActive) {
+          console.warn('Buffer maintenance failed:', error)
+        }
       }
     }
 
     // Start maintaining buffer immediately after initial load
     maintainImageBuffer()
+
+    // Cleanup: stop the loop when effect is cleaned up
+    return () => {
+      isActive = false
+    }
   }, [deck.length, currentIndex])
 
   useEffect(() => {
@@ -685,6 +747,7 @@ function App() {
       window.localStorage.removeItem(PLAYER_STORAGE_KEY)
       window.localStorage.removeItem(LEADERBOARD_STORAGE_KEY)
       window.localStorage.removeItem(ONBOARDING_STORAGE_KEY)
+      window.localStorage.removeItem(STATS_STORAGE_KEY)
     }
 
     // Reset all state

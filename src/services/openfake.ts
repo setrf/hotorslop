@@ -135,6 +135,45 @@ const log = (...args: unknown[]) => {
   console.info('[openfake]', ...args)
 }
 
+// Allowed image URL hosts for security
+const ALLOWED_IMAGE_HOSTS = [
+  'huggingface.co',
+  'datasets-server.huggingface.co',
+  'cdn-lfs.hf.co',
+  'cdn-lfs-us-1.hf.co',
+  'cdn-lfs.huggingface.co',
+]
+
+const isValidImageUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:') return false
+    return ALLOWED_IMAGE_HOSTS.some(
+      host => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`)
+    )
+  } catch {
+    return false
+  }
+}
+
+// Fetch with timeout to prevent hanging requests
+const fetchWithTimeout = async (url: string, timeoutMs = 30000): Promise<Response> => {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeoutId)
+    return response
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs}ms`)
+    }
+    throw error
+  }
+}
+
 const shuffle = <T,>(items: T[]): T[] => {
   const copy = [...items]
   for (let i = copy.length - 1; i > 0; i -= 1) {
@@ -257,7 +296,7 @@ const getSyntheticRowCount = async (): Promise<number> => {
     split: SYNTHETIC_SPLIT,
   })
 
-  const response = await fetch(`${HF_API_BASE}/info?${params.toString()}`)
+  const response = await fetchWithTimeout(`${HF_API_BASE}/info?${params.toString()}`)
   if (!response.ok) {
     throw new Error(`Failed to fetch dataset info: ${response.status}`)
   }
@@ -279,7 +318,7 @@ const getRealRowCount = async (): Promise<number> => {
     split: REAL_SPLIT,
   })
 
-  const response = await fetch(`${HF_API_BASE}/info?${params.toString()}`)
+  const response = await fetchWithTimeout(`${HF_API_BASE}/info?${params.toString()}`)
   if (!response.ok) {
     throw new Error(`Failed to fetch real dataset info: ${response.status}`)
   }
@@ -301,7 +340,7 @@ const getNanoBananaRowCount = async (): Promise<number> => {
     split: NANOBANANA_SPLIT,
   })
 
-  const response = await fetch(`${HF_API_BASE}/info?${params.toString()}`)
+  const response = await fetchWithTimeout(`${HF_API_BASE}/info?${params.toString()}`)
   if (!response.ok) {
     throw new Error(`Failed to fetch nano-banana dataset info: ${response.status}`)
   }
@@ -329,7 +368,7 @@ const fetchSyntheticRows = async (offset: number, limit: number): Promise<RowsRe
     limit: limit.toString(),
   })
 
-  const response = await fetch(`${HF_API_BASE}/rows?${params.toString()}`)
+  const response = await fetchWithTimeout(`${HF_API_BASE}/rows?${params.toString()}`)
   if (!response.ok) {
     throw new Error(`Failed to fetch synthetic rows: ${response.status}`)
   }
@@ -347,7 +386,7 @@ const fetchRealRows = async (offset: number, limit: number): Promise<CocoRowsRes
     limit: limit.toString(),
   })
 
-  const response = await fetch(`${HF_API_BASE}/rows?${params.toString()}`)
+  const response = await fetchWithTimeout(`${HF_API_BASE}/rows?${params.toString()}`)
   if (!response.ok) {
     throw new Error(`Failed to fetch real rows: ${response.status}`)
   }
@@ -365,7 +404,7 @@ const fetchNanoBananaRows = async (offset: number, limit: number): Promise<NanoB
     limit: limit.toString(),
   })
 
-  const response = await fetch(`${HF_API_BASE}/rows?${params.toString()}`)
+  const response = await fetchWithTimeout(`${HF_API_BASE}/rows?${params.toString()}`)
   if (!response.ok) {
     throw new Error(`Failed to fetch nano-banana rows: ${response.status}`)
   }
@@ -388,6 +427,7 @@ const buildSyntheticImage = (
   const src = raw.image?.src
   const label = raw.label
   if (!src || !label) return null
+  if (!isValidImageUrl(src)) return null
   if (label !== 'fake') return null
   const answer = labelToAnswerMap[label]
   if (!answer) return null
@@ -421,6 +461,7 @@ const buildRealImage = (
 ): HotOrSlopImage | null => {
   const src = raw.image?.src
   if (!src) return null
+  if (!isValidImageUrl(src)) return null
 
   const captions = Array.isArray(raw.answer) ? raw.answer.filter((item): item is string => Boolean(item?.trim())) : []
   const caption = captions.length > 0 ? captions[0] : raw.question
@@ -447,6 +488,7 @@ const buildOpenFakeRealImage = (
   const src = raw.image?.src
   const label = raw.label
   if (!src || !label) return null
+  if (!isValidImageUrl(src)) return null
   // Only accept real images from OpenFake
   if (label !== 'real') return null
 
@@ -470,6 +512,7 @@ const buildNanoBananaImage = (
 ): HotOrSlopImage | null => {
   const src = raw.image?.src
   if (!src) return null
+  if (!isValidImageUrl(src)) return null
 
   const identifier = raw.id !== undefined ? `${raw.id}` : `${rowIdx}`
 
@@ -671,7 +714,7 @@ const fetchRapidataRows = async (datasetId: string, offset: number, limit: numbe
     offset: offset.toString(),
     limit: limit.toString(),
   })
-  const response = await fetch(`${HF_API_BASE}/rows?${params.toString()}`)
+  const response = await fetchWithTimeout(`${HF_API_BASE}/rows?${params.toString()}`)
   if (!response.ok) throw new Error(`Failed to fetch Rapidata rows: ${response.status}`)
   const data = (await response.json()) as RapidataRowsResponse
   log('Fetched Rapidata batch', { dataset: datasetId, offset, limit, size: data.rows?.length ?? 0 })
@@ -687,7 +730,7 @@ const buildRapidataImages = (
   const prompt = normalisePrompt(row.prompt)
 
   // Extract image1
-  if (row.image1?.src && row.model1) {
+  if (row.image1?.src && row.model1 && isValidImageUrl(row.image1.src)) {
     results.push({
       id: `rapidata-${datasetId.split('/')[1]}-${rowIdx}-1`,
       src: row.image1.src,
@@ -701,7 +744,7 @@ const buildRapidataImages = (
   }
 
   // Extract image2
-  if (row.image2?.src && row.model2) {
+  if (row.image2?.src && row.model2 && isValidImageUrl(row.image2.src)) {
     results.push({
       id: `rapidata-${datasetId.split('/')[1]}-${rowIdx}-2`,
       src: row.image2.src,

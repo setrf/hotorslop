@@ -23,8 +23,8 @@
   --color-border: rgba(255, 241, 225, 0.16);
   --color-shadow: rgba(18, 10, 8, 0.55);
   --color-text-primary: #f5f1e8;
-  --color-text-secondary: rgba(245, 241, 232, 0.78);
-  --color-text-muted: rgba(245, 241, 232, 0.55);
+  --color-text-secondary: rgba(245, 241, 232, 0.85);
+  --color-text-muted: rgba(245, 241, 232, 0.72);
 
   /* Hot vs Cool color tension */
   --color-hot: #ff4e00;
