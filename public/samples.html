@@ -61,18 +61,60 @@
       text-decoration: none;
     }
     .back-link:hover { text-decoration: underline; }
+    .in-use {
+      display: inline-block;
+      background: #22c55e;
+      color: #000;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .not-used {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.5);
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .legend {
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.7);
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
   </style>
 </head>
 <body>
   <a href="/" class="back-link">&larr; Back to game</a>
   <h1>All Model Samples</h1>
   <p class="subtitle">5 images from each AI model and real photo source</p>
+  <div class="legend">
+    <div class="legend-item"><span class="in-use">In Use</span> Used in the game</div>
+    <div class="legend-item"><span class="not-used">Not Used</span> Available but not included</div>
+  </div>
 
   <h2 class="category">AI-Generated Models (OpenFake)</h2>
   <div id="ai-models"></div>
 
   <h2 class="category">AI-Generated (Nano-Banana)</h2>
   <div id="nano-banana-models"></div>
+
+  <h2 class="category">AI-Generated (Rapidata Benchmarks)</h2>
+  <div id="rapidata-models"></div>
 
   <h2 class="category real">Real Photo Sources</h2>
   <div id="real-sources"></div>
@@ -91,12 +133,29 @@
 
     const realSources = ['coco', 'openfake-real'];
 
+    // Rapidata benchmark datasets
+    const rapidataDatasets = [
+      { id: 'Rapidata/Flux-2-pro_t2i_human_preference', name: 'Flux-2-pro', rows: 44857 },
+      { id: 'Rapidata/Seedream-3_t2i_human_preference', name: 'Seedream-3', rows: 60030 },
+      { id: 'Rapidata/Imagen-4-ultra-24-7-25_t2i_human_preference', name: 'Imagen-4-ultra', rows: 55876 },
+      { id: 'Rapidata/Recraft-v3-24-7-25_t2i_human_preference', name: 'Recraft-v3', rows: 65931 },
+    ];
+
+    // Models/datasets actually used in the game
+    // OpenFake filtering: only models starting with 'real', 'imagen', 'gpt', 'flux'
+    // AND not in excluded list: ['gpt-image-1', 'flux.1-schnell', 'imagen-3.0-002', 'imagen-4.0', 'flux.1-dev']
+    const usedOpenFakeModels = new Set([
+      'flux-1.1-pro', 'flux-amateursnapshotphotos', 'flux-mvc5000', 'flux-realism'
+    ]);
+    const usedRapidataDatasets = new Set(rapidataDatasets.map(d => d.name));
+
     // Create sections
     const aiContainer = document.getElementById('ai-models');
     aiModels.forEach(model => {
+      const badge = usedOpenFakeModels.has(model) ? '<span class="in-use">In Use</span>' : '<span class="not-used">Not Used</span>';
       aiContainer.innerHTML += `
         <div class="section">
-          <h3>${model} <span class="count" id="count-${model}"></span></h3>
+          <h3>${model} ${badge} <span class="count" id="count-${model}"></span></h3>
           <div id="model-${model}" class="grid"><div class="loading">Loading...</div></div>
         </div>
       `;
@@ -105,19 +164,32 @@
     const nanoBananaContainer = document.getElementById('nano-banana-models');
     nanoBananaContainer.innerHTML = `
       <div class="section">
-        <h3>gemini-2.5-flash <span class="count" id="count-gemini"></span></h3>
+        <h3>gemini-2.5-flash <span class="in-use">In Use</span> <span class="count" id="count-gemini"></span></h3>
         <div id="model-gemini" class="grid"><div class="loading">Loading...</div></div>
       </div>
     `;
 
+    // Create Rapidata sections
+    const rapidataContainer = document.getElementById('rapidata-models');
+    rapidataDatasets.forEach(dataset => {
+      const slug = dataset.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      const badge = usedRapidataDatasets.has(dataset.name) ? '<span class="in-use">In Use</span>' : '<span class="not-used">Not Used</span>';
+      rapidataContainer.innerHTML += `
+        <div class="section">
+          <h3>${dataset.name} ${badge} <span class="count" id="count-rapidata-${slug}"></span></h3>
+          <div id="model-rapidata-${slug}" class="grid"><div class="loading">Loading...</div></div>
+        </div>
+      `;
+    });
+
     const realContainer = document.getElementById('real-sources');
     realContainer.innerHTML = `
       <div class="section">
-        <h3>COCO-Caption2017 <span class="count" id="count-coco"></span></h3>
+        <h3>COCO-Caption2017 <span class="in-use">In Use</span> <span class="count" id="count-coco"></span></h3>
         <div id="model-coco" class="grid"><div class="loading">Loading...</div></div>
       </div>
       <div class="section">
-        <h3>OpenFake Real <span class="count" id="count-openfake-real"></span></h3>
+        <h3>OpenFake Real <span class="in-use">In Use</span> <span class="count" id="count-openfake-real"></span></h3>
         <div id="model-openfake-real" class="grid"><div class="loading">Loading...</div></div>
       </div>
     `;
@@ -262,10 +334,52 @@
       }
     }
 
+    // Fetch Rapidata datasets
+    async function fetchRapidata() {
+      for (const dataset of rapidataDatasets) {
+        const slug = dataset.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        const container = document.getElementById(`model-rapidata-${slug}`);
+        const countEl = document.getElementById(`count-rapidata-${slug}`);
+
+        try {
+          const offset = Math.floor(Math.random() * Math.max(dataset.rows - 10, 0));
+          const rowsUrl = `${HF_API}/rows?dataset=${encodeURIComponent(dataset.id)}&config=default&split=train&offset=${offset}&limit=10`;
+
+          const res = await fetch(rowsUrl);
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+
+          const data = await res.json();
+          // Extract images from pairwise comparison format (image1, image2)
+          const images = [];
+          (data.rows || []).forEach(r => {
+            if (r.row?.image1?.src) images.push(r.row.image1.src);
+            if (r.row?.image2?.src) images.push(r.row.image2.src);
+          });
+
+          if (images.length === 0) {
+            container.innerHTML = '<div class="loading">No images found</div>';
+            countEl.textContent = '(0 found)';
+          } else {
+            countEl.textContent = `(${images.length} found)`;
+            container.innerHTML = images.slice(0, 5).map(src => `
+              <div class="card"><img src="${src}" alt="" loading="lazy"></div>
+            `).join('');
+          }
+        } catch (err) {
+          console.error(`Rapidata ${dataset.name} fetch error:`, err);
+          container.innerHTML = `<div class="loading">Error: ${err.message}</div>`;
+          countEl.textContent = '(error)';
+        }
+      }
+    }
+
     // Load all
     fetchAllOpenFakeModels();
     fetchNanoBanana();
     fetchCoco();
+    fetchRapidata();
   </script>
 </body>
 </html>

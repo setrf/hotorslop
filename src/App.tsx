@@ -833,8 +833,7 @@ function App() {
           <div className="brand-stack">
             <h2 className="brand-heading">Hot or Slop 🔥🤖</h2>
             <p className="brand-subtitle">
-              A visual Turing test where the crowd probes the state of generative image models and tracks our collective
-              ability to call the fake.
+              Can you spot AI-generated images? A distributed Turing test tracking our detection accuracy across image models.
             </p>
           </div>
         </header>

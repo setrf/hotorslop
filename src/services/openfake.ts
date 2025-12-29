@@ -21,6 +21,16 @@ const REAL_SPLIT = 'val'
 const REAL_DATASET_CARD_URL = `https://huggingface.co/datasets/${REAL_DATASET_ID}`
 const REAL_DATASET_LICENSE = 'CC BY 4.0'
 
+// Rapidata datasets (AI model comparison benchmarks - we extract individual images)
+const RAPIDATA_DATASETS = [
+  { id: 'Rapidata/Flux-2-pro_t2i_human_preference', rows: 44857 },
+  { id: 'Rapidata/Seedream-3_t2i_human_preference', rows: 60030 },
+  { id: 'Rapidata/Imagen-4-ultra-24-7-25_t2i_human_preference', rows: 55876 },
+  { id: 'Rapidata/Recraft-v3-24-7-25_t2i_human_preference', rows: 65931 },
+] as const
+const RAPIDATA_LICENSE = 'CDLA-Permissive-2.0'
+const RAPIDATA_CREDIT = `Rapidata benchmark · ${RAPIDATA_LICENSE}`
+
 export type HotOrSlopImage = {
   id: string
   src: string
@@ -95,6 +105,19 @@ type NanoBananaRowsResponse = {
   }>
 }
 
+type RapidataRowsResponse = {
+  rows: Array<{
+    row_idx: number
+    row: {
+      prompt?: string
+      image1?: { src?: string }
+      image2?: { src?: string }
+      model1?: string
+      model2?: string
+    }
+  }>
+}
+
 // Hardcoded row counts - eliminates 4 info API calls on initial load
 // These values are stable and only need occasional verification
 const HARDCODED_ROW_COUNTS = {
@@ -132,6 +155,11 @@ const nanoBananaCacheQueue: HotOrSlopImage[] = []
 const nanoBananaCacheIds = new Set<string>()
 const openFakeRealCacheQueue: HotOrSlopImage[] = []
 const openFakeRealCacheIds = new Set<string>()
+const rapidataCacheQueue: HotOrSlopImage[] = []
+const rapidataCacheIds = new Set<string>()
+
+// Track which Rapidata dataset to use next (round-robin for fair sampling)
+let rapidataDatasetIndex = 0
 
 const trimCache = (queue: HotOrSlopImage[], idSet: Set<string>) => {
   while (queue.length > MAX_CACHE_SIZE) {
@@ -635,6 +663,102 @@ const drawOpenFakeRealCards = async (count: number, limitPerFetch: number): Prom
   return result
 }
 
+const fetchRapidataRows = async (datasetId: string, offset: number, limit: number): Promise<RapidataRowsResponse['rows']> => {
+  const params = new URLSearchParams({
+    dataset: datasetId,
+    config: 'default',
+    split: 'train',
+    offset: offset.toString(),
+    limit: limit.toString(),
+  })
+  const response = await fetch(`${HF_API_BASE}/rows?${params.toString()}`)
+  if (!response.ok) throw new Error(`Failed to fetch Rapidata rows: ${response.status}`)
+  const data = (await response.json()) as RapidataRowsResponse
+  log('Fetched Rapidata batch', { dataset: datasetId, offset, limit, size: data.rows?.length ?? 0 })
+  return data.rows ?? []
+}
+
+const buildRapidataImages = (
+  datasetId: string,
+  rowIdx: number,
+  row: RapidataRowsResponse['rows'][number]['row']
+): HotOrSlopImage[] => {
+  const results: HotOrSlopImage[] = []
+  const prompt = normalisePrompt(row.prompt)
+
+  // Extract image1
+  if (row.image1?.src && row.model1) {
+    results.push({
+      id: `rapidata-${datasetId.split('/')[1]}-${rowIdx}-1`,
+      src: row.image1.src,
+      answer: 'ai',
+      label: 'fake',
+      prompt,
+      model: row.model1,
+      credit: RAPIDATA_CREDIT,
+      datasetUrl: `https://huggingface.co/datasets/${datasetId}`,
+    })
+  }
+
+  // Extract image2
+  if (row.image2?.src && row.model2) {
+    results.push({
+      id: `rapidata-${datasetId.split('/')[1]}-${rowIdx}-2`,
+      src: row.image2.src,
+      answer: 'ai',
+      label: 'fake',
+      prompt,
+      model: row.model2,
+      credit: RAPIDATA_CREDIT,
+      datasetUrl: `https://huggingface.co/datasets/${datasetId}`,
+    })
+  }
+
+  return results
+}
+
+const drawRapidataCards = async (count: number, limitPerFetch: number): Promise<HotOrSlopImage[]> => {
+  if (count <= 0) return []
+
+  let result = drawFromCache(rapidataCacheQueue, rapidataCacheIds, count, 'synthetic')
+  if (result.length >= count) return result
+
+  // Use round-robin to ensure fair sampling across all Rapidata datasets
+  const dataset = RAPIDATA_DATASETS[rapidataDatasetIndex]
+  rapidataDatasetIndex = (rapidataDatasetIndex + 1) % RAPIDATA_DATASETS.length
+  const totalRows = dataset.rows
+
+  for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS && result.length < count; attempt += 1) {
+    const limit = Math.min(limitPerFetch, 20)
+    const maxOffset = Math.max(totalRows - limit, 0)
+    const offset = Math.floor(Math.random() * (maxOffset + 1))
+
+    const rows = await fetchRapidataRows(dataset.id, offset, limit)
+    const images = rows.flatMap((entry) => buildRapidataImages(dataset.id, entry.row_idx, entry.row))
+
+    const added = enqueueItems(rapidataCacheQueue, rapidataCacheIds, images, 'synthetic')
+
+    const neededAfterEnqueue = count - result.length
+    if (neededAfterEnqueue > 0) {
+      const topUp = drawFromCache(rapidataCacheQueue, rapidataCacheIds, neededAfterEnqueue, 'synthetic')
+      result = result.concat(topUp)
+    }
+
+    log('Rapidata attempt complete', {
+      attempt,
+      dataset: dataset.id,
+      requested: count,
+      accumulated: result.length,
+      added,
+      cacheRemaining: rapidataCacheQueue.length,
+    })
+
+    if (added === 0) break
+  }
+
+  return result
+}
+
 // Quick fetch for progressive loading - gets minimum viable deck fast
 export const fetchQuickDeck = async (count = 4): Promise<HotOrSlopImage[]> => {
   const targetFake = Math.ceil(count / 2)
@@ -665,9 +789,10 @@ export const fetchOpenFakeDeck = async ({
   // Use smaller limit for faster initial response
   const fastLimit = Math.min(limitPerFetch, 20)
 
-  // Split fake images between OpenFake (~60%) and Nano-Banana (~40%)
-  const targetOpenFake = Math.ceil(targetFake * 0.6)
-  const targetNanoBanana = targetFake - targetOpenFake
+  // Split fake images evenly: OpenFake (~33%), Nano-Banana (~33%), Rapidata (~34%)
+  const targetOpenFake = Math.ceil(targetFake * 0.33)
+  const targetNanoBanana = Math.ceil(targetFake * 0.33)
+  const targetRapidata = targetFake - targetOpenFake - targetNanoBanana
 
   // Split real images between COCO (~60%) and OpenFake real (~40%)
   const targetCocoReal = Math.ceil(targetReal * 0.6)
@@ -678,26 +803,29 @@ export const fetchOpenFakeDeck = async ({
     targetFake,
     targetOpenFake,
     targetNanoBanana,
+    targetRapidata,
     targetReal,
     targetCocoReal,
     targetOpenFakeReal,
     limitPerFetch: fastLimit,
   })
 
-  const [initialOpenFake, initialNanoBanana, initialCocoReal, initialOpenFakeReal] = await Promise.all([
+  const [initialOpenFake, initialNanoBanana, initialRapidata, initialCocoReal, initialOpenFakeReal] = await Promise.all([
     drawSyntheticCards(targetOpenFake, fastLimit),
     drawNanoBananaCards(targetNanoBanana, fastLimit),
+    drawRapidataCards(targetRapidata, fastLimit),
     drawRealCards(targetCocoReal, fastLimit),
     drawOpenFakeRealCards(targetOpenFakeReal, fastLimit),
   ])
 
-  let combined: HotOrSlopImage[] = [...initialOpenFake, ...initialNanoBanana, ...initialCocoReal, ...initialOpenFakeReal]
-  let fakeCount = initialOpenFake.length + initialNanoBanana.length
+  let combined: HotOrSlopImage[] = [...initialOpenFake, ...initialNanoBanana, ...initialRapidata, ...initialCocoReal, ...initialOpenFakeReal]
+  let fakeCount = initialOpenFake.length + initialNanoBanana.length + initialRapidata.length
   let realCount = initialCocoReal.length + initialOpenFakeReal.length
 
   log('Initial draw complete', {
     openFake: initialOpenFake.length,
     nanoBanana: initialNanoBanana.length,
+    rapidata: initialRapidata.length,
     cocoReal: initialCocoReal.length,
     openFakeReal: initialOpenFakeReal.length,
     fakeCount,
@@ -708,13 +836,21 @@ export const fetchOpenFakeDeck = async ({
   if (fakeCount < targetFake) {
     const neededFake = Math.min(targetFake - fakeCount, Math.max(desired - combined.length, 0))
     if (neededFake > 0) {
-      // Try nano-banana first for variety, then fall back to OpenFake
-      const extraNanoBanana = await drawNanoBananaCards(Math.ceil(neededFake / 2), limitPerFetch)
-      combined = [...combined, ...extraNanoBanana]
-      fakeCount += extraNanoBanana.length
-      log('Nano-Banana top-up applied', { added: extraNanoBanana.length, fakeCount })
+      // Try Rapidata first, then nano-banana, then OpenFake for variety
+      const extraRapidata = await drawRapidataCards(Math.ceil(neededFake / 3), limitPerFetch)
+      combined = [...combined, ...extraRapidata]
+      fakeCount += extraRapidata.length
+      log('Rapidata top-up applied', { added: extraRapidata.length, fakeCount })
 
-      const stillNeeded = targetFake - fakeCount
+      let stillNeeded = targetFake - fakeCount
+      if (stillNeeded > 0) {
+        const extraNanoBanana = await drawNanoBananaCards(Math.ceil(stillNeeded / 2), limitPerFetch)
+        combined = [...combined, ...extraNanoBanana]
+        fakeCount += extraNanoBanana.length
+        log('Nano-Banana top-up applied', { added: extraNanoBanana.length, fakeCount })
+      }
+
+      stillNeeded = targetFake - fakeCount
       if (stillNeeded > 0) {
         const extraOpenFake = await drawSyntheticCards(stillNeeded, limitPerFetch)
         combined = [...combined, ...extraOpenFake]
@@ -744,6 +880,14 @@ export const fetchOpenFakeDeck = async ({
   }
 
   let shortage = desired - combined.length
+  if (shortage > 0) {
+    const extraRapidata = await drawRapidataCards(Math.ceil(shortage / 4), limitPerFetch)
+    combined = [...combined, ...extraRapidata]
+    fakeCount += extraRapidata.length
+    shortage = desired - combined.length
+    log('Rapidata fallback draw', { added: extraRapidata.length, shortage })
+  }
+
   if (shortage > 0) {
     const extraNanoBanana = await drawNanoBananaCards(Math.ceil(shortage / 3), limitPerFetch)
     combined = [...combined, ...extraNanoBanana]
@@ -820,5 +964,10 @@ export const OPEN_FAKE_CONSTANTS = {
     datasetUrl: SYNTHETIC_DATASET_CARD_URL,
     license: SYNTHETIC_DATASET_LICENSE,
     credit: openFakeRealDefaultCredit,
+  },
+  rapidata: {
+    datasets: RAPIDATA_DATASETS.map((d) => d.id),
+    license: RAPIDATA_LICENSE,
+    credit: RAPIDATA_CREDIT,
   },
 }
